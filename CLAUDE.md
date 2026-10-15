@@ -110,6 +110,27 @@ Nejsou to chyby k opravě, jsou to vlastnosti k zapamatování:
   a seznam procesů nesetříděný. Prime se musí volat na **těch samých instancích**,
   které pak čte `snapshot()`; stav je v instanci, ne v modulu.
 
+### Jediné místo, kde se tvar kopie mění: `ports.py`
+
+Seznam sledovaných portů je stroj-specifický, takže patří do konfigurace a obě
+funkce ho berou **argumentem** — `listening_ports(ignored_ports)` a
+`get_services(watch_ports, ignored_ports)`. Modul proto nemá **ani jeden import**,
+což je mechanický důkaz, že v něm nic stroj-specifického nezůstalo.
+
+`TCP_FILES` zůstává modulová proměnná čtená **až při volání**, ne default
+argument — testy ji monkeypatchují, aby šlo parsování zkoušet bez `/proc`.
+„Vylepšit" ji na parametr znamená rozbít testy.
+
+`KNOWN_PORTS` ze `sysmonu` se **nepřenáší a nemá se vracet.** Byl to
+`{**WATCH_PORTS, 80: "HTTP", 443: "HTTPS", 5432: "Postgres"}` používaný jako
+`KNOWN_PORTS.get(port) or label`; protože je nadmnožinou `WATCH_PORTS`, pro
+sledovaný port vracel vždy přesně ten label, který už byl po ruce — mrtvý kód.
+
+Tady by ale nebyl jen zbytečný, byl by to **bug**: `watch_ports` je teď od
+uživatele, takže kdo si napíše `80 = "MujWeb"`, dostal by s ním tiše `"HTTP"`.
+Ověřeno i měřením — seznamy výstupů starého a nového modulu jsou na stejném
+vstupu shodné.
+
 ## Konfigurace
 
 `$XDG_CONFIG_HOME/sysmon-app/config.toml` (fallback `~/.config`), stdlib
