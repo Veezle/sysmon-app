@@ -53,7 +53,7 @@ class Settings:
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
     watch_ports: dict[int, str] = field(default_factory=lambda: dict(DEFAULT_WATCH_PORTS))
-    ignored_ports: set = field(default_factory=lambda: set(DEFAULT_IGNORED_PORTS))
+    ignored_ports: set[int] = field(default_factory=lambda: set(DEFAULT_IGNORED_PORTS))
 
 
 def _port_number(value, key):
