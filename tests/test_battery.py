@@ -22,7 +22,9 @@ class BatteryTest(unittest.TestCase):
             os.mkdir(item)
             for attr, value in attrs.items():
                 with open(os.path.join(item, attr), "w") as f:
-                    f.write(value)
+                    # sysfs pise hodnotu s koncovym \n; bez nej by testy
+                    # nepoznaly, kdyby z battery.py zmizelo strip()
+                    f.write(value + "\n")
         self.use_path(root)
 
     def use_path(self, path):
