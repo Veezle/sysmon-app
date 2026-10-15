@@ -22,8 +22,8 @@ Fáze 1 (démon) rozpracovaná. Návrh je v
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`, plán po úlohách v
 `docs/superpowers/plans/2026-10-15-faze-1-demon.md`, průběh v `.tasks.json` vedle
 plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
-Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`). Zbývá
-`docker`, pak `monitor`, `feed`, `server`, `__main__` a ověření.
+Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
+(`docker`). Zbývá `monitor`, `feed`, `server`, `__main__` a ověření.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
