@@ -161,6 +161,12 @@ a na prvcích, které se mění každý tik, se neanimuje `width`, `height` ani
 Typy popíšou kontrakt snapshotu, takže „přidání metriky znamená tři místa" se
 aspoň zkontroluje překladačem.
 
+**Prázdná konfigurace se musí vykreslit jako „nic není nastaveno", ne jako
+„všechno je dole".** Když uživatel nechá `[watch_ports]` prázdné, vrací
+`get_services` prázdný seznam — a portovaná karta nad ním ukáže hlavičku
+„0 / 0" a smaže placeholder „Načítání…", takže to čte jako výpadek všech
+služeb. Port znamená „nesleduji ho", ne „neběží".
+
 ## Konfigurace
 
 `$XDG_CONFIG_HOME/sysmon-app/config.toml` (stdlib `tomllib`, žádná závislost).
