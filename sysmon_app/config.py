@@ -38,7 +38,7 @@ _KNOWN_KEYS = {"host", "port", "watch_ports", "ignored_ports"}
 def config_path():
     """Cesta ke konfiguraci. Respektuje XDG_CONFIG_HOME, relativni ignoruje.
 
-    Relativni XDG_CONFIG_HOME by znamenal, ze cesta k tokenu zavisi na
+    Relativni XDG_CONFIG_HOME by znamenal, ze cesta ke konfiguraci zavisi na
     aktualnim adresari procesu - to XDG basedir spec zakazuje.
     """
     default = os.path.join(os.path.expanduser("~"), ".config")
@@ -52,7 +52,7 @@ def config_path():
 class Settings:
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
-    watch_ports: dict = field(default_factory=lambda: dict(DEFAULT_WATCH_PORTS))
+    watch_ports: dict[int, str] = field(default_factory=lambda: dict(DEFAULT_WATCH_PORTS))
     ignored_ports: set = field(default_factory=lambda: set(DEFAULT_IGNORED_PORTS))
 
 
@@ -66,7 +66,8 @@ def _port_number(value, key):
         raise ValueError(f"{key}: '{value}' není číslo portu")
     try:
         port = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # OverflowError: inf je platne TOML, ale int(inf) ho vyhodi
         raise ValueError(f"{key}: '{value}' není číslo portu") from None
     if not 1 <= port <= 65535:
         raise ValueError(f"{key}: port {port} je mimo rozsah 1-65535")
@@ -98,30 +99,39 @@ def load_settings(path=None):
             f"Povolené jsou: {', '.join(sorted(_KNOWN_KEYS))}."
         )
 
+    # nejdriv tvary: u tech uz cestu v hlasce mame
+    if "host" in raw and not isinstance(raw["host"], str):
+        raise ValueError(
+            f'Konfigurace {path}: host musí být řetězec, např. host = "127.0.0.1".'
+        )
+    if "watch_ports" in raw and not isinstance(raw["watch_ports"], dict):
+        raise ValueError(
+            f"Konfigurace {path}: watch_ports musí být tabulka "
+            '[watch_ports] s porty jako klíči, např. 22 = "SSH".'
+        )
+    if "ignored_ports" in raw and not isinstance(raw["ignored_ports"], list):
+        raise ValueError(
+            f"Konfigurace {path}: ignored_ports musí být seznam čísel portů, "
+            "např. ignored_ports = [53, 631]."
+        )
+
+    # pak hodnoty: _port_number cestu nezna, doplnime ji az tady
     settings = Settings()
-    if "host" in raw:
-        settings.host = str(raw["host"])
-    if "port" in raw:
-        settings.port = _port_number(raw["port"], "port")
-    if "watch_ports" in raw:
-        table = raw["watch_ports"]
-        if not isinstance(table, dict):
-            raise ValueError(
-                f"Konfigurace {path}: watch_ports musí být tabulka "
-                '[watch_ports] s porty jako klíči, např. 22 = "SSH".'
-            )
-        settings.watch_ports = {
-            _port_number(port, f"watch_ports.{port}"): str(label)
-            for port, label in table.items()
-        }
-    if "ignored_ports" in raw:
-        ports = raw["ignored_ports"]
-        if not isinstance(ports, list):
-            raise ValueError(
-                f"Konfigurace {path}: ignored_ports musí být seznam čísel portů, "
-                "např. ignored_ports = [53, 631]."
-            )
-        settings.ignored_ports = {
-            _port_number(port, "ignored_ports") for port in ports
-        }
+    try:
+        if "host" in raw:
+            settings.host = raw["host"]
+        if "port" in raw:
+            settings.port = _port_number(raw["port"], "port")
+        if "watch_ports" in raw:
+            settings.watch_ports = {
+                _port_number(port, f"watch_ports.{port}"): str(label)
+                for port, label in raw["watch_ports"].items()
+            }
+        if "ignored_ports" in raw:
+            settings.ignored_ports = {
+                _port_number(port, "ignored_ports") for port in raw["ignored_ports"]
+            }
+    except ValueError as exc:
+        raise ValueError(f"Konfigurace {path}: {exc}") from None
+
     return settings
