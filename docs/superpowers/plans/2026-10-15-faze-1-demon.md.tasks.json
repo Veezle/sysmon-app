@@ -4,86 +4,116 @@
     {
       "id": 0,
       "subject": "Task 1: Skelet balíčku a konfigurace",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Balíček `sysmon_app` s `config.py`, který umí výchozí hodnoty i načtení `config.toml` od uživatele.\n\n**Files:** Create `.gitignore`, `sysmon_app/__init__.py`, `sysmon_app/config.py`, `tests/__init__.py`; Test `tests/test_config.py`\n\n**Acceptance Criteria:**\n- Chybějící konfigurační soubor dá výchozí hodnoty, ne chybu\n- `XDG_CONFIG_HOME` se respektuje, relativní hodnota se ignoruje\n- Rozbité TOML i neznámý klíč vyhodí `ValueError` s cestou k souboru\n- Klíče `[watch_ports]` se převedou na `int`\n\n**Verify:** `python3 -m unittest tests.test_config -v` → 9 testů PASS\n\n```json:metadata\n{\"files\": [\".gitignore\", \"sysmon_app/__init__.py\", \"sysmon_app/config.py\", \"tests/__init__.py\", \"tests/test_config.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_config -v\", \"acceptanceCriteria\": [\"Chybějící konfigurační soubor dá výchozí hodnoty\", \"Relativní XDG_CONFIG_HOME se ignoruje\", \"Rozbité TOML i neznámý klíč hlásí cestu k souboru\", \"watch_ports klíče jsou int\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Kolektory — systém a procesy",
       "status": "pending",
-      "blockedBy": [0],
+      "blockedBy": [
+        0
+      ],
       "description": "**Goal:** Přenesené `system.py` a `processes.py`, bez ukončování procesů.\n\n**Files:** Create `sysmon_app/collectors/system.py`, `sysmon_app/collectors/processes.py`; Test `tests/test_system.py`; Source `../sysmon/collectors/*`\n\n**Acceptance Criteria:**\n- `system.py` je kopie beze změny (neimportuje `config`)\n- `processes.py` neobsahuje `terminate()` ani `import signal`\n- `tests/test_system.py` prochází s upraveným importem\n\n**Verify:** `python3 -m unittest tests.test_system -v` → PASS, 2 testy; `grep -c \"signal\\|terminate\" sysmon_app/collectors/processes.py` → `0`\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/system.py\", \"sysmon_app/collectors/processes.py\", \"tests/test_system.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_system -v\", \"acceptanceCriteria\": [\"system.py je kopie beze změny\", \"processes.py bez terminate() a import signal\", \"testy procházejí\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: Kolektory — síť a disk",
       "status": "pending",
-      "blockedBy": [0],
+      "blockedBy": [
+        0
+      ],
       "description": "**Goal:** Přenesené rate-based kolektory. Oba jsou na `config` nezávislé, takže jde o byte-identickou kopii.\n\n**Files:** Create `sysmon_app/collectors/net.py`, `sysmon_app/collectors/disk.py`; Test `tests/test_rates.py`\n\n**Acceptance Criteria:**\n- Oba soubory jsou byte-identické s originálem (`diff` nic nevypíše)\n- Testy rate matematiky procházejí\n\n**Verify:** `python3 -m unittest tests.test_rates -v` → PASS, 4 testy\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/net.py\", \"sysmon_app/collectors/disk.py\", \"tests/test_rates.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_rates -v\", \"acceptanceCriteria\": [\"net.py a disk.py byte-identické s originálem\", \"testy rate matematiky procházejí\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 4: Kolektor — porty",
       "status": "pending",
-      "blockedBy": [0],
+      "blockedBy": [
+        0
+      ],
       "description": "**Goal:** Parsování `/proc/net/tcp{,6}` s seznamem sledovaných portů z konfigurace.\n\n**Files:** Create `sysmon_app/collectors/ports.py`; Test `tests/test_ports.py`\n\n**Acceptance Criteria:**\n- `listening_ports(ignored_ports)` a `get_services(watch_ports, ignored_ports)` berou konfiguraci jako argument\n- `TCP_FILES` zůstává module-level proměnná čtená při volání\n- `KNOWN_PORTS` se nepřenáší (mrtvý kód)\n- Port mimo `watch_ports` je neviditelný\n\n**Verify:** `python3 -m unittest tests.test_ports -v` → PASS, 6 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/ports.py\", \"tests/test_ports.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_ports -v\", \"acceptanceCriteria\": [\"konfigurace jako argument, ne globál\", \"TCP_FILES monkeypatchovatelný\", \"KNOWN_PORTS se nepřenáší\", \"port mimo watch_ports je neviditelný\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 5: Kolektory — GPU a baterie",
       "status": "pending",
-      "blockedBy": [0],
+      "blockedBy": [
+        0
+      ],
       "description": "**Goal:** Detekce GPU (NVIDIA/AMD) a baterie ze sysfs včetně 24h historie.\n\n**Files:** Create `sysmon_app/collectors/gpu.py`, `sysmon_app/collectors/battery.py`\n\n**Acceptance Criteria:**\n- `gpu.py` je byte-identická kopie\n- `battery.py` má změněný jen import konstant\n- `history()` vrací `{t, v}` s `t` relativním k prvnímu vzorku\n\n**Verify:** `diff ../sysmon/collectors/gpu.py sysmon_app/collectors/gpu.py` → prázdné; oba moduly se načtou a vrátí dict bez výjimky\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/gpu.py\", \"sysmon_app/collectors/battery.py\"], \"verifyCommand\": \"python3 -c \\\"from sysmon_app.collectors.battery import BatteryCollector; from sysmon_app.collectors.gpu import get_gpu; c=BatteryCollector(); print(c.read()['available'], c.history()); print(get_gpu()['available'])\\\"\", \"acceptanceCriteria\": [\"gpu.py byte-identická kopie\", \"battery.py jen jiný import konstant\", \"oba moduly se načtou bez výjimky\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 6: Kolektor — Docker",
       "status": "pending",
-      "blockedBy": [0],
+      "blockedBy": [
+        0
+      ],
       "description": "**Goal:** Seznam kontejnerů seskupený podle Compose projektu, obnovovaný na pozadí.\n\n**Files:** Create `sysmon_app/collectors/docker.py`; Test `tests/test_docker_grouping.py`\n\n**Acceptance Criteria:**\n- `restart()` se nepřenáší ani `from actions import validate_container_name`\n- `parse_labels()` neštěpí hodnotu na čárce\n- `group_by_project()` vrací `\"Ostatní\"` vždy poslední\n- `refresh()` nikdy nevyhodí výjimku\n\n**Verify:** `python3 -m unittest tests.test_docker_grouping -v` → PASS, 13 testů; `grep -c \"restart\\|actions\" sysmon_app/collectors/docker.py` → `0`\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/docker.py\", \"tests/test_docker_grouping.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_docker_grouping -v\", \"acceptanceCriteria\": [\"restart() a import actions odstraněny\", \"parse_labels zvládá čárku v hodnotě\", \"Ostatní je vždy poslední\", \"testy procházejí\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 7: Monitor a kontrakt snapshotu",
       "status": "pending",
-      "blockedBy": [1, 2, 3, 4, 5],
+      "blockedBy": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
       "description": "**Goal:** `Monitor.snapshot()` skládající dnešních 16 klíčů (+ `cpu_temp`, když ho stroj umí).\n\n**Files:** Create `sysmon_app/monitor.py`; Test `tests/test_snapshot_contract.py`\n\n**Acceptance Criteria:**\n- Snapshot má vždy přesně 16 klíčů; `cpu_temp` jen když není `None`\n- `Monitor(settings)` bere konfiguraci, `watch_ports` tečou do `get_services`\n- `prime()` nastaví baseline pro `net`, `disk` i CPU\n- V kontraktu nejsou `restart_container`/`kill_process`\n\n**Verify:** `python3 -m unittest tests.test_snapshot_contract -v` → PASS, 6 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/monitor.py\", \"tests/test_snapshot_contract.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_snapshot_contract -v\", \"acceptanceCriteria\": [\"16 klíčů vždy, cpu_temp podmíněně\", \"watch_ports z Settings do get_services\", \"prime() nastaví baseline\", \"žádné stopy po akcích\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 8: SnapshotFeed — jeden sběrný cyklus pro N odběratelů",
       "status": "pending",
-      "blockedBy": [0],
+      "blockedBy": [
+        0
+      ],
       "description": "**Goal:** `SnapshotFeed`, který tiká jednou za `TICK_SEC`, drží poslední snapshot a budí odběratele.\n\n**Files:** Create `sysmon_app/feed.py`; Test `tests/test_feed.py`\n\n**Acceptance Criteria:**\n- Dva odběratelé, jedno sebrání — `monitor.snapshot()` se za tik zavolá jednou\n- `wait_for(last_seq, timeout)` se vrátí, jakmile vznikne nový snapshot\n- Po timeoutu vrací `(seq, None)`, ne výjimku\n- `publish_once()` je veřejné, aby šly testy řídit bez spánku\n- `stop()` ukončí vlákno\n\n**Verify:** `python3 -m unittest tests.test_feed -v` → PASS, 6 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/feed.py\", \"tests/test_feed.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_feed -v\", \"acceptanceCriteria\": [\"dva odběratelé = jedno sehrání\", \"wait_for se vrátí po novém snapshotu\", \"timeout vrací None\", \"publish_once veřejné\", \"stop() ukončí vlákno\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 9: Server — SPA a /stats",
       "status": "pending",
-      "blockedBy": [0, 7],
+      "blockedBy": [
+        0,
+        7
+      ],
       "description": "**Goal:** HTTP server se stdlib, který servíruje frontend z `sysmon_app/web/` a vydává `/stats`.\n\n**Files:** Create `sysmon_app/server.py`, `sysmon_app/web/index.html`, `sysmon_app/web/static/{style.css,app.js,icon.svg}`; Test `tests/test_server.py`\n\n**Acceptance Criteria:**\n- `/stats` vrací snapshot z `feed.latest()`; když žádný není, sebere ho napřímo\n- `/static/` má allow-list přípon a ochranu proti `..`\n- `index.html` bez inline `<style>` a `<script>`\n- 404 má `Content-Length: 0`\n\n**Verify:** `python3 -m unittest tests.test_server -v` → PASS, 9 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/server.py\", \"sysmon_app/web/index.html\", \"sysmon_app/web/static/style.css\", \"sysmon_app/web/static/app.js\", \"sysmon_app/web/static/icon.svg\", \"tests/test_server.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_server -v\", \"acceptanceCriteria\": [\"/stats z feedu s fallbackem\", \"traversal guard a allow-list přípon\", \"index bez inline stylů a skriptů\", \"404 s Content-Length 0\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 10: SSE proud na /events",
       "status": "pending",
-      "blockedBy": [8],
+      "blockedBy": [
+        8
+      ],
       "description": "**Goal:** `GET /events` jako `text/event-stream` s chunked framováním.\n\n**Files:** Modify `sysmon_app/server.py`; Test `tests/test_sse.py`\n\n**Acceptance Criteria:**\n- Odpověď má `Content-Type: text/event-stream` a `Transfer-Encoding: chunked`\n- První chunk obsahuje `data: {…}` s platným JSON snapshotem\n- Odběratel, který odejde, nezastaví feed ani server\n- Po `SSE_KEEPALIVE_SEC` ticha přijde komentářový rámec\n\n**Verify:** `python3 -m unittest tests.test_sse -v` → PASS, 3 testy; `curl -sN --max-time 4 localhost:8430/events` sype `data: ` řádky\n\n```json:metadata\n{\"files\": [\"sysmon_app/server.py\", \"tests/test_sse.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_sse -v\", \"acceptanceCriteria\": [\"správné hlavičky event-stream a chunked\", \"první chunk je snapshot\", \"odchod klienta nic nerozbije\", \"keep-alive komentář po tichu\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 11: Vstupní bod python3 -m sysmon_app",
       "status": "pending",
-      "blockedBy": [6, 7, 8],
+      "blockedBy": [
+        6,
+        7,
+        8
+      ],
       "description": "**Goal:** Spustitelný démon: konfigurace, `prime()`, feed, server, a hlasitá chyba když je port obsazený.\n\n**Files:** Create `sysmon_app/__main__.py`; Test doplnit třídu `BusyPortTest` do `tests/test_server.py`\n\n**Acceptance Criteria:**\n- `python3 -m sysmon_app` nastartuje démona na 8430 a vypíše URL\n- `--port` a `--host` přebijí konfiguraci\n- Obsazený port skončí českou hláškou, ne tracebackem\n- Rozbitá konfigurace skončí českou hláškou s cestou, ne tracebackem\n\n**Verify:** `python3 -m unittest tests.test_server -v` → PASS, 10 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/__main__.py\", \"tests/test_server.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_server -v\", \"acceptanceCriteria\": [\"démon startuje na 8430\", \"--port a --host přebijí konfiguraci\", \"obsazený port hlásí větou\", \"rozbitá konfigurace hlásí větou\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 12: README a end-to-end ověření fáze 1",
       "status": "pending",
-      "blockedBy": [9, 10],
+      "blockedBy": [
+        9,
+        10
+      ],
       "description": "**Goal:** Zdokumentovat démona a ověřit, že dává stejná data jako `sysmon` — tedy že fáze 1 je hotová.\n\n**Files:** Create `README.md`\n\n**Acceptance Criteria:**\n- `python3 -m unittest discover -s tests -t . -v` je celé zelené\n- V prohlížeči na `localhost:8430` se vykreslí stejné karty jako `sysmon` na 8420\n- README dokumentuje dočasný frontend i mrtvá tlačítka\n- README říká nahlas, že server je na všech rozhraních\n\n**Verify:** oba produkty vedle sebe: `curl -s localhost:8420/stats` a `curl -s localhost:8430/stats` dají srovnatelná čísla; karty v prohlížeči odpovídají\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t . -v\", \"acceptanceCriteria\": [\"celá sada zelená\", \"karty na 8430 odpovídají 8420\", \"README dokumentuje dočasný frontend\", \"README přiznává poslech na všech rozhraních\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-10-15T23:20:54+02:00"
+  "lastUpdated": "2026-10-15T23:36:00+02:00"
 }
