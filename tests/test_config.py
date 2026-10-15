@@ -150,6 +150,14 @@ class LoadSettingsTest(TempConfigTest):
                 self.assertIn("host", str(ctx.exception))
                 self.assertIn(path, str(ctx.exception))
 
+    def test_watch_and_ignored_ports_must_not_overlap(self):
+        """Port v obou seznamech by se nikdy nezobrazil jako běžící."""
+        path = self.write_config('ignored_ports = [22]\n[watch_ports]\n22 = "SSH"\n')
+        with self.assertRaises(ValueError) as ctx:
+            load_settings(path)
+        self.assertIn("22", str(ctx.exception))
+        self.assertIn(path, str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

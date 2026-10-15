@@ -134,4 +134,14 @@ def load_settings(path=None):
     except ValueError as exc:
         raise ValueError(f"Konfigurace {path}: {exc}") from None
 
+    # az tady: rozhoduje vzajemny vztah obou seznamu, ne jeden z nich sam
+    overlap = sorted(set(settings.watch_ports) & set(settings.ignored_ports))
+    if overlap:
+        raise ValueError(
+            f"Konfigurace {path}: zároveň ve watch_ports i v ignored_ports je "
+            f"port {', '.join(str(port) for port in overlap)}. "
+            "ignored_ports se zahazuje ještě před porovnáním, takže by se takový "
+            "port nikdy nezobrazil jako běžící a karta služeb by lhala."
+        )
+
     return settings
