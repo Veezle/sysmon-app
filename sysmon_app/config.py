@@ -57,7 +57,13 @@ class Settings:
 
 
 def _port_number(value, key):
-    """Prevede klic/hodnotu na cislo portu, nebo rekne, co je spatne."""
+    """Prevede klic/hodnotu na cislo portu, nebo rekne, co je spatne.
+
+    bool se odmita zamerne: v Pythonu je to podtyp int, takze true by se tise
+    prevedlo na port 1 - stejna past, jakou v sysmonu resi validate_pid.
+    """
+    if isinstance(value, bool):
+        raise ValueError(f"{key}: '{value}' není číslo portu")
     try:
         port = int(value)
     except (TypeError, ValueError):
@@ -109,7 +115,13 @@ def load_settings(path=None):
             for port, label in table.items()
         }
     if "ignored_ports" in raw:
+        ports = raw["ignored_ports"]
+        if not isinstance(ports, list):
+            raise ValueError(
+                f"Konfigurace {path}: ignored_ports musí být seznam čísel portů, "
+                "např. ignored_ports = [53, 631]."
+            )
         settings.ignored_ports = {
-            _port_number(port, "ignored_ports") for port in raw["ignored_ports"]
+            _port_number(port, "ignored_ports") for port in ports
         }
     return settings

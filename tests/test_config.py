@@ -69,6 +69,21 @@ class LoadSettingsTest(unittest.TestCase):
             load_settings(path)
         self.assertIn("watch_ports", str(ctx.exception))
 
+    def test_ignored_ports_must_be_a_list(self):
+        """Tabulka i retezec jsou chyba - "53" by se tise rozpadlo na {3, 5}."""
+        for text in ('[ignored_ports]\n53 = "DNS"\n', 'ignored_ports = "53"\n'):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError) as ctx:
+                    load_settings(write_config(text))
+                self.assertIn("ignored_ports", str(ctx.exception))
+
+    def test_bool_is_not_a_port(self):
+        """true je platne TOML; chytit to musi az guard, ne parser."""
+        path = write_config("port = true\n")
+        with self.assertRaises(ValueError) as ctx:
+            load_settings(path)
+        self.assertIn("port", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
