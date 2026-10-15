@@ -28,6 +28,52 @@ Task 3 (`net`, `disk`), Task 4 (`ports`). Zbývá `gpu`, `battery`, `docker`, pa
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
 
+## Jak se tady pracuje
+
+Práce jde **po taskách z plánu** a **po každém tasku se zastavuje** — shrnutí a
+čekání na pokyn. Pokračuje se jen na vyžádání („pokračuj na task N"), i když je
+další krok zřejmý.
+
+Postup u jednoho tasku:
+
+1. Vzít zadání tasku z plánu a poslat **čerstvého subagenta** jako implementátora.
+   Dostat má **plné znění svého tasku**, ne celý plán — a nesmí si ho číst sám.
+2. **Ověřit výsledek sám proti repu** — `git log`, `diff` proti `../sysmon`,
+   spuštěné testy. Nikdy ne podle toho, co subagent napíše do hlášení.
+3. **Recenze zadání** (jiný subagent): odpovídá kód přesně zadání? Nic navíc,
+   nic míň? Recenzent má dostat výslovný pokyn nevěřit hlášení implementátora.
+4. **Recenze kvality** (další subagent) — až po té první.
+5. Nálezy buď zadat k opravě, nebo **odůvodnit, proč se zamítají**. Nikdy tiše.
+   Opravy dělá tentýž implementátor, a po opravách se recenze opakuje.
+6. Označit task v `.tasks.json` jako `completed`, aktualizovat „Stav" tady.
+7. Shrnutí a pauza.
+
+**Zásady pro zadání každého subagenta:**
+
+- Nikdy necommituj na `main`; pracuje se na větvi `faze-1-demon`.
+- **Nikdy nesahat do `../sysmon`** — čte se z něj, nepíše.
+- `git add` **jen s explicitními cestami**, nikdy `-A` ani `.`. V stromu bývají
+  necommitnuté dokumenty, které do cizího commitu nepatří.
+- Implementátor needituje nic pod `docs/` ani soubory z jiných tasků.
+- Žádné nové závislosti, žádný `pyproject.toml`, žádný build step.
+
+**Co se osvědčilo:**
+
+- U **přenosových** tasků (2, 3, 5, 6) stačí jedno kolo recenzí. Tam, kde se mění
+  tvar nebo přidává logika (1, 4), se vyplatí počítat s víc.
+- Model: mechanická kopie zvládne levný model, recenze a integrace potřebují
+  silnější.
+- Recenzenti mají dostat **konkrétní seznam tvrzení k vyvrácení**, ne „zkontroluj
+  to". Nejcennější nálezy vznikly tak, že recenzent něco přeměřil, přepsal nebo
+  zfalšoval a tvrzení vyvrátil — ne že si kód přečetl.
+- **Vzorec, na který se vyplatí čekat:** „tohle bylo v pořádku, dokud byla
+  konfigurace naše; teď je uživatelova, a je to bug." Tak se našly `KNOWN_PORTS`
+  i překryv `watch_ports` s `ignored_ports`. Přenos ze `sysmonu` nese předpoklady
+  platné jen pro jeden stroj.
+
+**Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
+`python3 -m unittest discover -s tests -t .`.
+
 ## Commands
 
 ```bash
