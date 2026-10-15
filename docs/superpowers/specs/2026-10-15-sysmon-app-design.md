@@ -169,7 +169,14 @@ Patří tam stroj-specifické věci, které dnes žijí v `config.py`:
 - `watch_ports` — seznam sledovaných služeb. Dnes je to seznam vývojářova
   notebooku; na cizím stroji je nesmysl.
 - `host` — výchozí `0.0.0.0` kvůli telefonu, jde omezit na `127.0.0.1`.
-- `ignored_ports`, intervaly.
+- `ignored_ports` — porty, které se nikdy nezobrazují.
+
+Intervaly (tik, dotazování Dockeru, vzorkování baterie) konfigurovatelné
+**nejsou** — zůstávají konstantami. Nikdo je nepotřeboval měnit a každý další
+klíč je další věc, která se dá rozbít. Neznámý klíč v konfiguraci je proto
+**tvrdá chyba**, ne tiché ignorování: kdo si napíše `tick_sec = 2.0`, dostane
+větu s cestou k souboru a seznamem povolených klíčů, ne konfiguraci, která
+„nějak nefunguje".
 
 ## Testy
 
