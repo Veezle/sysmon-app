@@ -60,7 +60,7 @@ class ReadTest(BatteryTest):
         self.assertTrue(result["available"])
         self.assertEqual(result["percent"], 77)
         self.assertEqual(result["status_label"], "Vybíjí se")
-        self.assertFalse(result["ac_online"])
+        self.assertIs(result["ac_online"], False)
         self.assertEqual(result["time_remaining_minutes"], 228)
 
     def test_charge_series_is_the_fallback(self):
@@ -73,8 +73,55 @@ class ReadTest(BatteryTest):
         })
         self.assertEqual(self.read()["time_remaining_minutes"], 120)
 
+    def test_ac_online_with_several_supplies(self):
+        """Realny stroj ma ACAD online=1 a dve USB-C, z toho jednu online=0.
 
-class HistoryTest(BatteryTest):
+        Staci jediny zapnuty zdroj; pocet zdroju ani poradi, v jakem je
+        listdir vrati, nesmi rozhodovat.
+        """
+        cases = (
+            {"ACAD": {"type": "Mains", "online": "1"}},
+            {"USBC": {"type": "USB", "online": "1"}},
+            {"USBC": {"type": "USB_C", "online": "1"}},
+            {"AC1": {"type": "Mains", "online": "1"},
+             "AC2": {"type": "Mains", "online": "0"}},
+            {"AC1": {"type": "Mains", "online": "0"},
+             "AC2": {"type": "Mains", "online": "1"}},
+        )
+        for extra in cases:
+            with self.subTest(supplies=sorted(extra)):
+                supplies = dict(extra)
+                supplies["BAT0"] = {
+                    "type": "Battery", "capacity": "80", "status": "Not charging",
+                }
+                self.use_supply(supplies)
+                self.assertIs(self.read()["ac_online"], True)
+
+    def test_not_charging_has_no_remaining_time(self):
+        """Na adapteru se cas do vybiti nepocita - 'Not charging' neni vybijeni.
+
+        power_now je zamerne vetsi nez nula, aby tudy proteklo i pripadne
+        zruseni vetve `if status == "Discharging"`.
+        """
+        self.use_supply({
+            "BAT0": {
+                "type": "Battery", "capacity": "80", "status": "Not charging",
+                "energy_now": "42410000", "power_now": "10000000",
+            },
+        })
+        result = self.read()
+        self.assertIsNone(result["time_remaining_minutes"])
+        self.assertEqual(result["status_label"], "Nenabíjí se")
+
+    def test_missing_capacity_does_not_break_the_card(self):
+        """Nektere baterie `capacity` nemaji; karta se nesmi zrusit ani spadnout."""
+        self.use_supply({"BAT0": {"type": "Battery", "status": "Discharging"}})
+        result = self.read()
+        self.assertTrue(result["available"])
+        self.assertIsNone(result["percent"])
+
+
+class HistoryTest(unittest.TestCase):
     def test_empty_history(self):
         self.assertEqual(battery.BatteryCollector().history(), [])
 
