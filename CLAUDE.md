@@ -22,8 +22,8 @@ Fáze 1 (démon) rozpracovaná. Návrh je v
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`, plán po úlohách v
 `docs/superpowers/plans/2026-10-15-faze-1-demon.md`, průběh v `.tasks.json` vedle
 plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
-Task 3 (`net`, `disk`), Task 4 (`ports`). Zbývá `gpu`, `battery`, `docker`, pak
-`feed`, `monitor`, `server`, `__main__` a ověření.
+Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`). Zbývá
+`docker`, pak `monitor`, `feed`, `server`, `__main__` a ověření.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -70,6 +70,11 @@ Postup u jednoho tasku:
   konfigurace naše; teď je uživatelova, a je to bug." Tak se našly `KNOWN_PORTS`
   i překryv `watch_ports` s `ignored_ports`. Přenos ze `sysmonu` nese předpoklady
   platné jen pro jeden stroj.
+- **Falešný vstup musí umět selhat stejně jako skutečný.** Fixtura baterie
+  psala hodnoty bez koncového `\n` a modelovala jediné AC napájení, takže
+  obrany v kódu (`strip()`, slévání zdrojů přes `or`) nebyly nikdy zatížené
+  a mutanty procházely. Otázka k čekání: „co na tomhle stroji vypadá jinak než
+  ve fixtuře?" — v Tasku 5 to bylo `\n` a tři napájecí zdroje místo jednoho.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.

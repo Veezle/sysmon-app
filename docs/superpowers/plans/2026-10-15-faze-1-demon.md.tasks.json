@@ -37,11 +37,11 @@
     {
       "id": 4,
       "subject": "Task 5: Kolektory — GPU a baterie (s testy pro baterii)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         0
       ],
-      "description": "**Goal:** Detekce GPU (NVIDIA/AMD) a baterie ze sysfs vcetne 24h historie, s testy pro baterii.\n\n**Files:** Create `sysmon_app/collectors/gpu.py`, `sysmon_app/collectors/battery.py`; Test `tests/test_battery.py`\n\n**Acceptance Criteria:**\n- `gpu.py` je byte-identicka kopie (neimportuje `config`)\n- `battery.py` ma zmeneny jen import konstant\n- `history()` vraci `{t, v}` s `t` relativnim k prvnimu vzorku\n- `tests/test_battery.py` kryje `read()` proti fake sysfs a `history()`\n\n**Verify:** `diff ../sysmon/collectors/gpu.py sysmon_app/collectors/gpu.py` -> prazdne; `python3 -m unittest tests.test_battery -v` -> 6 testu; cela sada -> 38\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/gpu.py\", \"sysmon_app/collectors/battery.py\", \"tests/test_battery.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_battery -v\", \"acceptanceCriteria\": [\"gpu.py byte-identicka kopie\", \"battery.py jen jiny import konstant\", \"history() vraci relativni casy\", \"testy kryji read() proti fake sysfs\"]}\n```"
+      "description": "**Goal:** Detekce GPU (NVIDIA/AMD) a baterie ze sysfs vcetne 24h historie, s testy pro baterii.\n\n**Files:** Create `sysmon_app/collectors/gpu.py`, `sysmon_app/collectors/battery.py`; Test `tests/test_battery.py`\n\n**Acceptance Criteria:**\n- `gpu.py` je byte-identicka kopie (neimportuje `config`)\n- `battery.py` ma zmeneny jen import konstant\n- `history()` vraci `{t, v}` s `t` relativnim k prvnimu vzorku\n- `tests/test_battery.py` kryje `read()` proti fake sysfs a `history()`\n\n**Verify:** `diff ../sysmon/collectors/gpu.py sysmon_app/collectors/gpu.py` -> prazdne; `python3 -m unittest tests.test_battery -v` -> 9 testu; cela sada -> 41\n\n```json:metadata\n{\"files\": [\"sysmon_app/collectors/gpu.py\", \"sysmon_app/collectors/battery.py\", \"tests/test_battery.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_battery -v\", \"acceptanceCriteria\": [\"gpu.py byte-identicka kopie\", \"battery.py jen jiny import konstant\", \"history() vraci relativni casy\", \"testy kryji read() proti fake sysfs\"]}\n```"
     },
     {
       "id": 5,
@@ -115,5 +115,5 @@
       "description": "**Goal:** Zdokumentovat démona a ověřit, že dává stejná data jako `sysmon` — tedy že fáze 1 je hotová.\n\n**Files:** Create `README.md`\n\n**Acceptance Criteria:**\n- `python3 -m unittest discover -s tests -t . -v` je celé zelené\n- V prohlížeči na `localhost:8430` se vykreslí stejné karty jako `sysmon` na 8420\n- README dokumentuje dočasný frontend i mrtvá tlačítka\n- README říká nahlas, že server je na všech rozhraních\n\n**Verify:** oba produkty vedle sebe: `curl -s localhost:8420/stats` a `curl -s localhost:8430/stats` dají srovnatelná čísla; karty v prohlížeči odpovídají\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t . -v\", \"acceptanceCriteria\": [\"celá sada zelená\", \"karty na 8430 odpovídají 8420\", \"README dokumentuje dočasný frontend\", \"README přiznává poslech na všech rozhraních\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-10-16T00:10:12+02:00"
+  "lastUpdated": "2026-10-16T00:32:15+02:00"
 }
