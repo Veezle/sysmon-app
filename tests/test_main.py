@@ -584,7 +584,7 @@ with mock.patch.object(vstupni_bod, "Monitor", Monitor), \\
 """
 
 
-class InterruptTest(unittest.TestCase):
+class InterruptTest(MainTestCase):
     """Kriterium 3 a 4 plati i pro Ctrl+C: veta a navratovy kod 0."""
 
     def test_ctrl_c_ends_cleanly(self):
@@ -595,14 +595,49 @@ class InterruptTest(unittest.TestCase):
         ale chovani, ktere ma tenhle test odhalit, takze se pousti stranou.
         """
         repo = Path(__file__).resolve().parent.parent
+        # Podprocesu se XDG_CONFIG_HOME predava zvlast: `mock.patch.dict`
+        # v setUp plati jen pro tenhle proces, a bez nej by si podproces
+        # precetl konfiguraci uzivatele - a s rozbitou by sada padala podle
+        # toho, na jakem stroji se pousti.
+        env = dict(os.environ, XDG_CONFIG_HOME=self.config_home.name)
         proc = subprocess.run(
             [sys.executable, "-c", SIGINT_SCRIPT],
-            cwd=repo, capture_output=True, text=True, timeout=30,
+            cwd=repo, env=env, capture_output=True, text=True, timeout=30,
         )
 
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("konec", proc.stdout)
         self.assertNotIn("Traceback", proc.stderr)
+
+
+class HelpTest(MainTestCase):
+    def test_help_works_with_a_broken_config(self):
+        """Napoveda je jedine, co na konfiguraci zaviset nema.
+
+        Uzivatel si ji rozbije preklepem (cilova skupina jsou lidi, kteri si
+        appku nainstaluji dvojklikem) a prave tehdy potrebuje zjistit, jak se
+        to pousti. Kdyby `load_settings()` spadlo driv nez argparse, dostal by
+        misto napovedi jen vetu o konfiguraci.
+        """
+        cases = {
+            "neznamy klic": "napis = 1\n",
+            "rozjete TOML": "port = \n",
+            "spatny typ": 'port = "nic"\n',
+        }
+        for label, text in cases.items():
+            with self.subTest(label=label):
+                self.write_config(text)
+
+                with self.assertRaises(SystemExit) as caught:
+                    self.run_main(["--help"])
+
+                self.assertEqual(caught.exception.code, 0)
+                self.assertIn("usage:", self.out.getvalue())
+                self.assertIn("--port", self.out.getvalue())
+                # V napovede se konfigurace nehlasi - hlasi se az pri startu.
+                self.assertNotIn("Chyba v konfiguraci", self.err.getvalue())
+                self.assertEqual(self.serve_calls, [])
+                self.assertEqual(self.monitors, [])
 
 
 class ShutdownTest(MainTestCase):

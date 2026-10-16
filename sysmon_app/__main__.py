@@ -16,7 +16,7 @@ import errno
 import socket
 import sys
 
-from sysmon_app.config import load_settings
+from sysmon_app.config import Settings, load_settings
 from sysmon_app.feed import SnapshotFeed
 from sysmon_app.monitor import Monitor
 from sysmon_app.server import serve
@@ -105,13 +105,21 @@ def report_bind_error(exc, host, port):
 def main(argv=None):
     try:
         settings = load_settings()
+        config_error = None
     except ValueError as exc:
         # Rozbita konfigurace se hlasi vetou (a s cestou k souboru, kterou
-        # ValueError ve sobe nese), ne tracebackem.
-        print(f"Chyba v konfiguraci: {exc}", file=sys.stderr)
-        return 2
+        # ValueError ve sobe nese), ne tracebackem. Hlasi se ale az po
+        # argumentech: `--help` je jedine, co na konfiguraci zaviset nema,
+        # a uzivatel ho potrebuje prave tehdy, kdyz si ji rozbil preklepem.
+        # Vychozi Settings tu slouzi jen k postaveni parseru.
+        settings = Settings()
+        config_error = exc
 
     args = parse_args(argv, settings)
+
+    if config_error is not None:
+        print(f"Chyba v konfiguraci: {config_error}", file=sys.stderr)
+        return 2
 
     monitor = Monitor(settings)
     monitor.prime()             # baseline pro rate-based metriky
