@@ -43,7 +43,7 @@ class SnapshotFeedTest(unittest.TestCase):
         feed = SnapshotFeed(monitor)
         feed.publish_once()
         self.assertEqual(monitor.calls, 1)
-        self.assertEqual(feed.latest()["n"], 1)
+        self.assertEqual(feed.latest(), {"host": "test", "n": 1})
         self.assertEqual(feed.snapshot_seq(), 1)
 
     def test_two_subscribers_share_one_collection(self):
@@ -59,13 +59,17 @@ class SnapshotFeedTest(unittest.TestCase):
         subscribers = [threading.Thread(target=subscribe) for _ in range(2)]
         for t in subscribers:
             t.start()
+        started = time.monotonic()
         feed.publish_once()
         for t in subscribers:
             t.join(timeout=5)
+        elapsed = time.monotonic() - started
 
         self.assertEqual(monitor.calls, 1)
         self.assertEqual(len(received), 2)
         self.assertTrue(all(snapshot["host"] == "test" for _, snapshot in received))
+        # Oba se musi probudit hned - `notify()` by nechal druheho cekat do timeoutu.
+        self.assertLess(elapsed, 1.0)
         # Vsichni dostanou tyz objekt - kopie pro kazdeho by se nasobila
         # s poctem odberatelu a tikem.
         self.assertIs(received[0][1], received[1][1])
@@ -86,6 +90,7 @@ class SnapshotFeedTest(unittest.TestCase):
 
         self.assertGreater(seq, old_seq)
         self.assertEqual(snapshot["n"], 2)
+        self.assertEqual(feed.latest()["n"], 2)
         # "jakmile" - ne az po timeoutu: bez notify_all by se vracel za 5 s.
         self.assertLess(elapsed, 1.0)
 
@@ -119,9 +124,15 @@ class SnapshotFeedTest(unittest.TestCase):
         # A za tik se sbira prave jednou: druha perioda jeste neuplynula.
         self.assertEqual(monitor.calls, 1)
 
+        started = time.monotonic()
         feed.stop()
         feed.join(timeout=5)
+        elapsed = time.monotonic() - started
+
         self.assertFalse(feed.is_running())
+        # A nesmi to trvat cely interval: `_stop.wait` se probudi hned, kdezto
+        # `time.sleep` by stop ignoroval az do konce periody.
+        self.assertLess(elapsed, 1.0)
 
     def test_stop_releases_a_waiting_subscriber(self):
         """Stop musi probudit odberatele visiciho ve wait_for.

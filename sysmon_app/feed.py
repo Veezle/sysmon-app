@@ -46,7 +46,7 @@ class SnapshotFeed:
             return self._seq
 
     def wait_for(self, last_seq, timeout):
-        """Pocka na snapshot novejsi nez last_seq. Vraci (seq, snapshot).
+        """Pocka na snapshot s jinym seq, nez je last_seq. Vraci (seq, snapshot).
 
         Po timeoutu vraci (last_seq, None) - volatel to bere jako "nic
         noveho", ne jako chybu.
