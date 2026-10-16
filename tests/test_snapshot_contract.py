@@ -5,7 +5,9 @@ proste vykresli v degradovanem tvaru, coz je presne to, co ma kontrakt
 dovolit. Predstira se jen vyjimka, aby slo overit, ze ji Monitor spolkne.
 """
 
+import itertools
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from sysmon_app.collectors.processes import get_top_processes
@@ -45,6 +47,10 @@ MODULE_CALLS = {
 }
 COLLECTORS = tuple(INSTANCE_CALLS) + tuple(MODULE_CALLS)
 
+# Kolektory, ktere protaci prime(). cpu_percent je tu zamerne chybi: je to
+# prime psutil, ne kolektor, a podstrcit ho by rozbilo i snapshot().
+PRIMED = ("net", "disk", "processes")
+
 
 def failure(key, monitor):
     """Kontextovy manazer, ktery donuti kolektor pro dany klic vyhodit."""
@@ -58,6 +64,8 @@ class SnapshotContractTest(unittest.TestCase):
     def test_has_all_always_present_keys(self):
         snapshot = Monitor(Settings()).snapshot()
         self.assertEqual(set(ALWAYS_PRESENT) - set(snapshot), set())
+        # A presne 16: cpu_temp je jediny klic, ktery smi byt navic.
+        self.assertEqual(set(snapshot) - {"cpu_temp"}, set(ALWAYS_PRESENT))
 
     def test_cpu_temp_is_added_only_when_available(self):
         monitor = Monitor(Settings())
@@ -76,14 +84,40 @@ class SnapshotContractTest(unittest.TestCase):
         settings = Settings(watch_ports={})
         self.assertEqual(Monitor(settings).snapshot()["services"], [])
 
-    def test_prime_establishes_net_and_disk_baseline(self):
+    def test_prime_establishes_baseline_for_rate_collectors(self):
+        """Bez protočení by první čtení bylo vždy nula - proto se prime() volá.
+
+        `_prev_t` je privátní, ale je to přesně ten stav, který „baseline"
+        znamená. Přes veřejné rozhraní se protočení poznat nedá: první i druhé
+        čtení vrací float, jen to první je vždy nulové, a nula je na klidném
+        stroji i správná odpověď.
+        """
         monitor = Monitor(Settings())
+        self.assertIsNone(monitor.net._prev_t)
+        self.assertIsNone(monitor.disk._prev_t)
         monitor.prime()
-        snapshot = monitor.snapshot()
-        # Druhe cteni uz ma baseline, takze pocita z rozdilu - nesmi spadnout
-        # a musi dat cisla, ne None.
-        self.assertIsInstance(snapshot["net"]["up"], float)
-        self.assertIsInstance(snapshot["disk"]["read_rate"], float)
+        self.assertIsNotNone(monitor.net._prev_t)
+        self.assertIsNotNone(monitor.disk._prev_t)
+
+    def test_prime_makes_the_first_snapshot_nonzero(self):
+        """Týž nález z druhé strany: první /stats nesmí být samá nula."""
+        monitor = Monitor(Settings())
+        sent = itertools.count(1000, 1000)
+        recv = itertools.count(2000, 2000)
+        clock = itertools.count(100.0, 1.0)
+
+        def counters():
+            return SimpleNamespace(bytes_sent=next(sent), bytes_recv=next(recv))
+
+        with mock.patch("sysmon_app.collectors.net.psutil.net_io_counters",
+                        side_effect=counters), \
+             mock.patch("sysmon_app.collectors.net.time.monotonic",
+                        side_effect=lambda: next(clock)):
+            monitor.prime()
+            net = monitor.snapshot()["net"]
+
+        self.assertGreater(net["up"], 0)
+        self.assertGreater(net["down"], 0)
 
     def test_snapshot_has_no_action_results(self):
         """Produkt jen zobrazuje - v kontraktu nesmi byt stopy po akcich."""
@@ -92,11 +126,13 @@ class SnapshotContractTest(unittest.TestCase):
             self.assertFalse(hasattr(monitor, method))
 
     def test_prime_survives_a_failing_collector(self):
-        """Vyjimka pri startu nesmi shodit demona."""
-        monitor = Monitor(Settings())
-        with failure("net", monitor):
-            monitor.prime()
-        self.assertEqual(set(ALWAYS_PRESENT) - set(monitor.snapshot()), set())
+        """Vyjimka pri startu nesmi shodit demona - a to u kterehokoli z protočených."""
+        for key in PRIMED:
+            with self.subTest(collector=key):
+                monitor = Monitor(Settings())
+                with failure(key, monitor):
+                    monitor.prime()
+                self.assertEqual(set(ALWAYS_PRESENT) - set(monitor.snapshot()), set())
 
     def test_any_collector_failure_keeps_the_contract(self):
         """Vypadek kterehokoli kolektoru snapshot neshodi ani neubira klic."""
