@@ -86,7 +86,7 @@
     {
       "id": 8,
       "subject": "Task 9: Server — SPA a /stats",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         0,
         7
