@@ -85,12 +85,12 @@ class SnapshotContractTest(unittest.TestCase):
         self.assertEqual(Monitor(settings).snapshot()["services"], [])
 
     def test_prime_establishes_baseline_for_rate_collectors(self):
-        """Bez protočení by první čtení bylo vždy nula - proto se prime() volá.
+        """Bez protoceni by prvni cteni bylo vzdy nula - proto se prime() vola.
 
-        `_prev_t` je privátní, ale je to přesně ten stav, který „baseline"
-        znamená. Přes veřejné rozhraní se protočení poznat nedá: první i druhé
-        čtení vrací float, jen to první je vždy nulové, a nula je na klidném
-        stroji i správná odpověď.
+        `_prev_t` je privatni, ale je to presne ten stav, ktery baseline
+        znamena. Pres verejne rozhrani se protoceni poznat neda: prvni i druhe
+        cteni vraci float, jen to prvni je vzdy nulove, a nula je na klidnem
+        stroji i spravna odpoved.
         """
         monitor = Monitor(Settings())
         self.assertIsNone(monitor.net._prev_t)
@@ -100,7 +100,7 @@ class SnapshotContractTest(unittest.TestCase):
         self.assertIsNotNone(monitor.disk._prev_t)
 
     def test_prime_makes_the_first_snapshot_nonzero(self):
-        """Týž nález z druhé strany: první /stats nesmí být samá nula."""
+        """Tentyz nalez z druhe strany: prvni /stats nesmi byt sama nula."""
         monitor = Monitor(Settings())
         sent = itertools.count(1000, 1000)
         recv = itertools.count(2000, 2000)
@@ -126,7 +126,7 @@ class SnapshotContractTest(unittest.TestCase):
             self.assertFalse(hasattr(monitor, method))
 
     def test_prime_survives_a_failing_collector(self):
-        """Vyjimka pri startu nesmi shodit demona - a to u kterehokoli z protočených."""
+        """Vyjimka pri startu nesmi shodit demona - a to u kterehokoli z protocenych."""
         for key in PRIMED:
             with self.subTest(collector=key):
                 monitor = Monitor(Settings())
