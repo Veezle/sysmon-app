@@ -90,7 +90,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self._path()
-        if path == "/stats":
+        if path == "/events":
+            self._stream_events()
+        elif path == "/stats":
             self._send_json(self._snapshot_now())
         elif path in ("/", "/index.html"):
             self._send(load_index(), "text/html; charset=utf-8")
@@ -123,6 +125,58 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+    def _stream_events(self):
+        """Posila snapshoty, dokud klient neodejde.
+
+        Framovani je chunked rucne: u SSE se neda poslat Content-Length,
+        protoze telo nema konec. Kazdy snapshot je jeden chunk.
+
+        `last_seq` se bere ze soucasneho cisla, ne z nuly: odberatel od nuly
+        by dostal okamzite stary snapshot a teprve pak novy.
+        """
+        feed = self.server.feed
+        # Vzorkuje se pred hlavickami: co se publikuje po tomhle okamziku,
+        # to odberatel dostane, co bylo pred nim, je "soucasny stav" a
+        # posilat ho znovu znamena poslat stara data. Po end_headers() by
+        # mezi vzorkem a hlavickami bylo okno, ve kterem klient uz cte
+        # odpoved, ale jeho snapshot se jeste zahodi.
+        last_seq = feed.snapshot_seq()
+
+        # Spojeni je jednosmerne a nema konec - po navratu z do_GET se zavre.
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+        try:
+            while True:
+                seq, snapshot = feed.wait_for(last_seq, timeout=SSE_KEEPALIVE_SEC)
+                if snapshot is None:
+                    if not feed.is_running():
+                        # Feed je zastaveny (Task 11) - wait_for vraci None
+                        # okamzite, takze pokracovat znamena tocit smycku na
+                        # plny plyn (miliony keep-alive ramcu za sekundu).
+                        # Test na `is_running()` ve while by to nezavrelo:
+                        # vlakno feedu jeste chvili zije.
+                        break
+                    # Nic noveho - komentarovy ramec drzi spojeni nazivu.
+                    self._write_chunk(b": keep-alive\n\n")
+                    continue
+                last_seq = seq
+                payload = json.dumps(snapshot).encode("utf-8")
+                self._write_chunk(b"data: " + payload + b"\n\n")
+            self._write_chunk(b"")  # ukoncovaci chunk: konec tela, ne useknuti
+        except OSError:
+            # Klient zavrel okno nebo usel (BrokenPipeError, ConnectionResetError).
+            # Neni to chyba serveru - nesmi prosnout do socketserver.handle_error.
+            return
+
+    def _write_chunk(self, data):
+        self.wfile.write(b"%x\r\n" % len(data) + data + b"\r\n")
+        self.wfile.flush()
 
 
 def serve(monitor, feed, host=DEFAULT_HOST, port=DEFAULT_PORT):
