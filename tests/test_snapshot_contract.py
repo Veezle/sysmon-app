@@ -228,6 +228,24 @@ class SnapshotContractTest(unittest.TestCase):
         for proc in processes:
             self.assertEqual(set(proc), {"pid", "name", "cpu", "mem"})
 
+    def test_processes_reach_the_snapshot_untruncated(self):
+        """Monitor preda seznam procesu dal - ne fallback a ne zkraceny.
+
+        Kolektor se podstrkuje, aby test nezavisel na tom, co zrovna bezi:
+        `psutil.process_iter()` je v `processes.py` mimo vnitrni `try`, takze
+        na stroji s necitelnym /proc by seznam prisel prazdny a test by tvrdil
+        neco o hostiteli, ne o `Monitoru`.
+
+        Chyti i zkraceny seznam: `partial(get_top_processes, 3)` se podstrcenym
+        kolektorem projevi jen v argumentu, ktery se tu kontroluje.
+        """
+        fake = [{"pid": 1, "name": "x", "cpu": 0.0, "mem": 0}]
+        monitor = Monitor(Settings())
+        with mock.patch("sysmon_app.monitor.get_top_processes",
+                        return_value=fake) as procs:
+            self.assertEqual(monitor.snapshot()["processes"], fake)
+        procs.assert_called_once_with(TOP_PROCESSES_N)
+
 
 if __name__ == "__main__":
     unittest.main()
