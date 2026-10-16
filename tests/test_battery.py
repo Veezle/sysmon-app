@@ -173,6 +173,10 @@ class WorkerTest(BatteryTest):
         smycku ukoncoval jen `sleep`, mutant bez `time.sleep` by test
         zacyklil misto aby ho shodil. Omezeny seznam spanku je zalozni brzda
         pro pripad, ze se `time.time()` v mutovanem kode vubec nezavola.
+
+        Brzdi proto, ze `time.sleep` je vne `try`: vycerpany mock vyhodi
+        `StopIteration`, ktera utece ven. Presun `sleep` dovnitr `try` by
+        z brzdy udelal vecne toceni.
         """
         self.use_supply({
             "BAT0": {"type": "Battery", "capacity": "50", "status": "Charging"},
