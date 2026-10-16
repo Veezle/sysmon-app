@@ -154,11 +154,15 @@ Proto:
 - **soukromí:** `index.html` ani CSS nesmí obsahovat cizí origin (`http://`,
   `https://`, `//`) — build se nesmí rozejít s tím, že produkt nic netahá z netu;
 - **chybějící build:** démon to řekne českou větou, ne tracebackem;
-- **stabilita DOM:** headless Chrome (`--virtual-time-budget`) vykreslí tutéž
-  stránku s **konstantním** snapshotem dvakrát — krátce (~2 tiky) a dlouho
-  (~80 tiků) — a počty uzlů v `#cores`, `#services-list`, `#proc-list`,
-  `#docker-containers` musí být **shodné**. Konstantní data dělají pin ostrým:
-  dnešní frontend přebudovával ~90 prvků každý tik i beze změny. Přeskočí se,
+- **stabilita DOM:** headless Chrome (`--virtual-time-budget`) vykreslí stránku
+  s **konstantním** snapshotem a změří, co se v seznamech (`#cores`,
+  `#services-list`, `#proc-list`, `#docker-containers`) děje: **počet childList
+  mutací** musí být po ~80 ticích nula a první řádek každého seznamu musí být
+  **tyž objekt**. Měří se mutace a identita, ne počet uzlů — dnešní frontend
+  přebudovává seznamy přes `replaceChildren`, takže počet uzlů zůstává stejný
+  a pin na počty by prošel i proti starému kódu (přišlo se na to až při psaní
+  plánu). Měření jde bez CDP: stránka, kterou server servíruje, je náš harness,
+  který si `MutationObserver` nasadí sám a výsledek zapíše do DOM. Přeskočí se,
   když není chrome nebo build.
 
 **Frontend:** `npm run build` (obsahuje `tsc`) a `npm run typecheck` pro
