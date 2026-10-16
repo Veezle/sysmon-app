@@ -26,6 +26,10 @@ Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
 (`docker`), Task 7 (`monitor` + kontrakt snapshotu). Zbývá Task 7b (doplnění
 pokrytí kolektorů), pak `feed`, `server`, `__main__` a ověření.
 
+Task 7b má v plánu **hotovou předlohu testů** — psanou a ověřenou při
+zakládání tasku (86 testů zelených, dvanáct mutací zabito). Implementátor ji
+opíše; recenzenti ji ale mají brát jako nový kód, ne jako spec.
+
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
 
