@@ -335,8 +335,7 @@ class KeepaliveTest(SseTestCase):
         datech (interval 0.05) by komentar nikdy neprisel a test by pinoval
         jen to, ze data tecou.
         """
-        # Dve ruzne hodnoty: okno se pocita z podstrcene konstanty, takze
-        # mutant s napevno zadratovanym timeoutem padne aspon na jedne z nich.
+        # Dve ruzne hodnoty: zadratovany timeout padne aspon na jedne z nich.
         for keepalive in KEEPALIVE_VALUES:
             with self.subTest(keepalive=keepalive):
                 self.check_keepalive(keepalive)
@@ -344,37 +343,66 @@ class KeepaliveTest(SseTestCase):
     def check_keepalive(self, keepalive):
         self.start_server(interval=60)
         self.wait_seq(1)
+        recorded = []
+        self.spy_wait_for(recorded)
 
         with mock.patch.object(server, "SSE_KEEPALIVE_SEC", keepalive):
             sock, f = self.open_stream()
             read_head(f)
             self.feed.publish_once()          # jeden snapshot, pak ticho
-            self.assertEqual(data_payload(read_chunk(f))["n"], 2)
-
-            started = time.monotonic()
-            frame = read_chunk(f)
-            elapsed = time.monotonic() - started
-            again = read_chunk(f)
+            data = self.read_until(f, b"data: ")
+            self.assertIsNotNone(data, "datovy ramec nedorazil")
+            self.assertEqual(data_payload(data)["n"], 2)
+            frame = self.read_until(f, b":")
+            again = self.read_until(f, b":")
             # Spojeni zavrit hned: tenhle handler uz jen posila keep-alive
             # a v sade by zbytecne zil dal.
             f.close()
             sock.close()
 
+        # Vazba na konstantu se pinuje primo: handler musi cekat prave
+        # s podstrcenou hodnotou. Mereni casu na klientovi by to neuneslo -
+        # pod vyhladovenim CPU roste wall-clock mez bez hranice (namereno
+        # 1,37x-2,49x hodnoty), takze by test padal falesne.
+        self.assertTrue(recorded, "handler na feedu vubec necekal")
+        self.assertEqual(set(recorded), {keepalive},
+                         f"wait_for se volal s {recorded}, ne s {keepalive}")
+        # A na drate: po tichu dorazil komentar, ne zavreni spojeni.
         self.assertIsNotNone(frame, "spojeni se zavrelo misto keep-alive")
         self.assertTrue(frame.startswith(b":"), f"ramec neni komentar: {frame!r}")
-        # Prahy jsou nasobky podstrcene hodnoty, ale sirsi nez rozptyl:
-        # pod zatezi (32x `yes` na nice 0, test na nice 19) se mereny cas
-        # rozlije na 0,66x-1,37x hodnoty - klient je planovany pozde, takze
-        # cas zacatku i konce mereni ujizdi. Kdyz se mez nastavi tesne, zacne
-        # test selhavat falesne a prestane se dat rozeznat vada od sumu.
-        # Pin nedrzi tesnost oken, ale to, ze se pocitaji z podstrcene
-        # konstanty a jsou dve: okna (0,5k; 1,6k) pro 0,15 a 0,5 jsou
-        # disjunktni, takze zadny zadratovany timeout neprojde obema.
-        self.assertGreater(elapsed, keepalive * 0.5, "keep-alive prisel pred timeoutem")
-        self.assertLess(elapsed, keepalive * 1.6, "keep-alive nedorazil vcas")
-        # A po komentari spojeni zije dal - jinak by ho klient bral jako konec.
+        # A po nem spojeni zije dal.
         self.assertIsNotNone(again, "po prvnim keep-alive se spojeni zavrelo")
         self.assertTrue(again.startswith(b":"), f"ramec neni komentar: {again!r}")
+
+    def spy_wait_for(self, recorded):
+        """Podstrci feedu `wait_for`, ktery si poznamena predany timeout.
+
+        Feed je instance testu, takze se do `server.py` nesaha. Vaza se tim
+        argument volani, ne namereny cas: "handler ceka SSE_KEEPALIVE_SEC"
+        je tvrzeni o konstate, a ta je videt primo.
+        """
+        real = self.feed.wait_for
+
+        def wait_for(last_seq, timeout=None):
+            recorded.append(timeout)
+            return real(last_seq, timeout=timeout)
+
+        self.feed.wait_for = wait_for
+
+    def read_until(self, f, prefix, limit=10):
+        """Cte ramce, dokud neprijde ramec s danym prefixem.
+
+        Cestou se odcedi keep-alive: pod zatezi muze handlerovi ujit tik
+        driv, nez test stihne zapsat `publish_once`, takze prvni ramec byva
+        komentar. `limit` je pojistka, aby chybejici ramec spadl, ne visel.
+        """
+        for _ in range(limit):
+            frame = read_chunk(f)
+            if frame is None:
+                return None
+            if frame.startswith(prefix):
+                return frame
+        return None
 
 
 class StopTest(SseTestCase):
