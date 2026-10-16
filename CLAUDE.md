@@ -24,16 +24,20 @@ Fáze 1 (démon) rozpracovaná. Návrh je v
 plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
 (`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
-kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů). Zbývá
-`server` (Tasky 9 a 10), `__main__` (Task 11) a README s ověřením fáze 1
-(Task 12). **Další na řadě je Task 9**; předletová kontrola i past předaná
-Tasku 10 jsou zapsané v plánu u příslušných sekcí.
+kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů), Task 9
+(`server` — SPA a `/stats`). Zbývá SSE proud (Task 10), `__main__` (Task 11)
+a README s ověřením fáze 1 (Task 12). **Další na řadě je Task 10**; předletová
+kontrola i pasti předané Taskům 10 a 11 (stav je na instanci serveru, ne na
+třídě `Handler`; `feed.start()` negarantuje snapshot před `serve()`) jsou
+zapsané v plánu u příslušných sekcí.
 
-Task 7b i Task 8 měly v plánu **hotovou předlohu**, a obě se ukázaly být
-**výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili tři vadné piny,
-u Tasku 8 předloha nepinovala vlastní acceptance kritéria (dvanáct mutovaných
-vlastností přežilo) a její časové piny tiše držely, jen dokud bylo `TICK_SEC`
-vyrazně nad prahem. Opsaný kód se recenzuje jako nový.
+Task 7b, Task 8 i Task 9 měly v plánu **hotovou předlohu**, a všechny tři se
+ukázaly být **výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili tři vadné
+piny, u Tasku 8 předloha nepinovala vlastní acceptance kritéria (dvanáct
+mutovaných vlastností přežilo) a její časové piny tiše držely, jen dokud bylo
+`TICK_SEC` vyrazně nad prahem, u Tasku 9 nechalo devět plánových testů projít
+sedm mutantů (dva z nich přitom porušovaly acceptance kritéria) a trasu
+`/static/` netestovalo po drátě vůbec. Opsaný kód se recenzuje jako nový.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -112,15 +116,33 @@ Postup u jednoho tasku:
   `assertLess` s prahem blízkým pinované veličině — a **vazba na tu veličinu se má
   tvrdit**: v Tasku 8 piny držely, jen dokud bylo `TICK_SEC` vyrazně nad prahem,
   a při jeho zkrácení se tiše vypnuly (odhaleno až měřením s jinou hodnotou).
-- **Předloha v plánu je výchozí bod, ne spec.** Tasky 7b i 8 měly v plánu hotový
-  kód, a obě předlohy nepinovaly, co slibovaly — u Tasku 8 přežilo dvanáct
-  mutovaných vlastností. Recenzent se proto nemá ptát „odpovídá to zadání?", ale
+- **Předloha v plánu je výchozí bod, ne spec.** Tasky 7b, 8 i 9 měly v plánu
+  hotový kód, a všechny tři předlohy nepinovaly, co slibovaly — u Tasku 8 přežilo
+  dvanáct mutovaných vlastností, u Tasku 9 sedm (dvě z nich přitom porušovaly
+  acceptance kritéria). Recenzent se proto nemá ptát „odpovídá to zadání?", ale
   **„které kritérium to vlastně pinuje?"** — a měřit to mutantami, ne čtením.
 - **Recenzní smyčka se musí zastavit.** Task 8 měl tři kola recenzí a čtyři
   opravné commity; poslední kola už přinášela jednořádkovky. Stop pravidlo, které
   se osvědčilo: poslední kolo ověřuje **jen deltu**, opravují se **jen blokující**
   nálezy a všechno ostatní se zapíše do plánu jako vědomá mez. Bez toho se smyčka
   nezastaví, protože každé kolo něco najde.
+- **Test, který neteče po drátě, nepinuje trasu.** V Tasku 9 volaly všechny testy
+  `/static/` jen `load_static()` napřímo, takže sada zůstala zelená i s přejmenovaným
+  prefixem, s rozbitým odřezem cesty a s trasou, která asset **nikdy nepošle** —
+  a stránka se přitom načetla bez CSS i bez JS, prázdná. Jednotková pojistka
+  (`realpath`, allow-list) byla naměřeně nosná; chyběl pin na to, co produkt
+  skutečně dělá. Otázka: **stahuje to test po drátě, nebo jen volá funkci, kterou
+  trasa používá?** Totéž platí pro vstupy, které prohlížeč normalizuje: názvy HTML
+  značek jsou case-insensitive, takže `assertNotIn("<script>", index)` a
+  `re.findall` bez `re.I` nechaly projít `<SCRIPT>alert(1)</SCRIPT>` — pin vypadal,
+  že brání vkládání kódu, a přitom ho pustil.
+- **Stav na třídě handleru je stav celého procesu, ne serveru.** Předloha Tasku 9
+  věšela `monitor`/`feed` na třídu `Handler`, a to ještě **před** bindem. Naměřeno:
+  druhé `serve()` na obsazeném portu (scénář Tasku 11) přepsalo stav serveru, který
+  už běžel, a ten pak odpovídal cizími daty. Vypadá to jako neměnná konfigurace
+  procesu; je to ale stav, který patří instanci — a test, který oba servery staví,
+  to odhalí jen tehdy, když je v obou něco k vidění (prázdný feed spadne do
+  fallbacku a rozdíl se schová).
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
@@ -148,7 +170,7 @@ Balíček `sysmon_app/`:
 | `collectors/` | jeden modul na **oblast**, ne na metriku |
 | `feed.py` | `SnapshotFeed` — jeden sběrný cyklus pro N odběratelů *(Task 8)* |
 | `monitor.py` | `Monitor.snapshot()` — kontrakt *(Task 7)* |
-| `server.py` | HTTP: SPA, `/stats`, `/events` (SSE) *(Task 9, 10)* |
+| `server.py` | HTTP: SPA, `/stats` hotové, `/events` (SSE) *(Task 10)* |
 | `__main__.py` | vstupní bod *(Task 11)* |
 | `web/` | dočasný frontend, kopie ze `sysmonu`; fáze 2 ho nahradí |
 
