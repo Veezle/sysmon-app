@@ -1,0 +1,153 @@
+"""Kontrakt snapshotu - jedina vec, na ktere stoji UI i telefon.
+
+Kolektory se nepredstiraji - na stroji bez Dockeru nebo baterie se karty
+proste vykresli v degradovanem tvaru, coz je presne to, co ma kontrakt
+dovolit. Predstira se jen vyjimka, aby slo overit, ze ji Monitor spolkne.
+"""
+
+import unittest
+from unittest import mock
+
+from sysmon_app.collectors.processes import get_top_processes
+from sysmon_app.config import TOP_PROCESSES_N, Settings
+from sysmon_app.monitor import Monitor
+
+# 16 klicek, ktere musi byt ve snapshotu vzdy. cpu_temp je navic a jen
+# kdyz ho stroj umi precist - jeho nepritomnost je platny stav.
+ALWAYS_PRESENT = (
+    "host", "user", "cpu", "cpu_cores", "mem", "swap", "loadavg", "disk",
+    "processes", "system", "gpu", "battery", "battery_history", "net",
+    "services", "containers",
+)
+
+# Kolektory, ktere Monitor obaluje. Kazdy z nich se da donutit k vyjimce;
+# rozhrani je ruzne, proto se objekt hleda bud na instanci, nebo v modulu.
+INSTANCE_CALLS = {
+    "net": "net",
+    "disk": "disk",
+    "battery": "battery",
+    "battery_history": "battery",
+    "containers": "docker",
+}
+INSTANCE_METHODS = {
+    "net": "read",
+    "disk": "read",
+    "battery": "read",
+    "battery_history": "history",
+    "containers": "snapshot",
+}
+MODULE_CALLS = {
+    "loadavg": "get_loadavg",
+    "processes": "get_top_processes",
+    "system": "get_system_info",
+    "gpu": "get_gpu",
+    "services": "get_services",
+}
+COLLECTORS = tuple(INSTANCE_CALLS) + tuple(MODULE_CALLS)
+
+
+def failure(key, monitor):
+    """Kontextovy manazer, ktery donuti kolektor pro dany klic vyhodit."""
+    if key in INSTANCE_CALLS:
+        obj = getattr(monitor, INSTANCE_CALLS[key])
+        return mock.patch.object(obj, INSTANCE_METHODS[key], side_effect=RuntimeError(key))
+    return mock.patch(f"sysmon_app.monitor.{MODULE_CALLS[key]}", side_effect=RuntimeError(key))
+
+
+class SnapshotContractTest(unittest.TestCase):
+    def test_has_all_always_present_keys(self):
+        snapshot = Monitor(Settings()).snapshot()
+        self.assertEqual(set(ALWAYS_PRESENT) - set(snapshot), set())
+
+    def test_cpu_temp_is_added_only_when_available(self):
+        monitor = Monitor(Settings())
+        with mock.patch("sysmon_app.monitor.get_cpu_temp", return_value=42.0):
+            self.assertEqual(monitor.snapshot()["cpu_temp"], 42.0)
+        with mock.patch("sysmon_app.monitor.get_cpu_temp", return_value=None):
+            self.assertNotIn("cpu_temp", monitor.snapshot())
+
+    def test_watch_ports_from_settings_reach_services(self):
+        settings = Settings(watch_ports={12345: "Testovaci"})
+        services = Monitor(settings).snapshot()["services"]
+        self.assertEqual([s["port"] for s in services], [12345])
+
+    def test_ports_outside_watch_list_are_invisible(self):
+        """Port, ktery neni ve watch_ports, se na karte sluzeb neobjevi."""
+        settings = Settings(watch_ports={})
+        self.assertEqual(Monitor(settings).snapshot()["services"], [])
+
+    def test_prime_establishes_net_and_disk_baseline(self):
+        monitor = Monitor(Settings())
+        monitor.prime()
+        snapshot = monitor.snapshot()
+        # Druhe cteni uz ma baseline, takze pocita z rozdilu - nesmi spadnout
+        # a musi dat cisla, ne None.
+        self.assertIsInstance(snapshot["net"]["up"], float)
+        self.assertIsInstance(snapshot["disk"]["read_rate"], float)
+
+    def test_snapshot_has_no_action_results(self):
+        """Produkt jen zobrazuje - v kontraktu nesmi byt stopy po akcich."""
+        monitor = Monitor(Settings())
+        for method in ("restart_container", "kill_process"):
+            self.assertFalse(hasattr(monitor, method))
+
+    def test_prime_survives_a_failing_collector(self):
+        """Vyjimka pri startu nesmi shodit demona."""
+        monitor = Monitor(Settings())
+        with failure("net", monitor):
+            monitor.prime()
+        self.assertEqual(set(ALWAYS_PRESENT) - set(monitor.snapshot()), set())
+
+    def test_any_collector_failure_keeps_the_contract(self):
+        """Vypadek kterehokoli kolektoru snapshot neshodi ani neubira klic."""
+        for key in COLLECTORS:
+            with self.subTest(collector=key):
+                monitor = Monitor(Settings())
+                with failure(key, monitor):
+                    snapshot = monitor.snapshot()
+                self.assertEqual(set(ALWAYS_PRESENT) - set(snapshot), set())
+
+    def test_net_failure_has_the_same_keys_as_success(self):
+        """Net je jediny kolektor bez vlastni degradacni cesty.
+
+        U ostatnich staci jejich vlastni tvar (available: False), ktery karta
+        umi vykreslit i na stroji bez te veci. U netu by ale chybejici klice
+        rozbily render, takze je sklada Monitor a musi sedet s uspesnou vetvi.
+        """
+        monitor = Monitor(Settings())
+        with failure("net", monitor):
+            failed = monitor.snapshot()["net"]
+        self.assertEqual(failed, {"up": 0.0, "down": 0.0, "total_up": 0, "total_recv": 0})
+        self.assertEqual(set(failed), set(Monitor(Settings()).snapshot()["net"]))
+
+    def test_failure_of_one_collector_leaves_the_rest_working(self):
+        """Zbytek dashboardu se dal aktualizuje - nezamrzne cely."""
+        monitor = Monitor(Settings())
+        with failure("net", monitor):
+            snapshot = monitor.snapshot()
+        self.assertEqual(snapshot["net"]["up"], 0.0)
+        self.assertIsInstance(snapshot["cpu"], float)
+        self.assertGreater(len(snapshot["cpu_cores"]), 0)
+        self.assertIsInstance(snapshot["mem"]["percent"], float)
+        self.assertIsInstance(snapshot["disk"]["read_rate"], float)
+
+    def test_fallback_shape_is_not_shared_between_snapshots(self):
+        """Nahradni tvar se vraci jako kopie - jinak by si ho odberatele prepsali."""
+        monitor = Monitor(Settings())
+        with failure("containers", monitor):
+            first = monitor.snapshot()["containers"]
+            second = monitor.snapshot()["containers"]
+        self.assertEqual(first, second)
+        self.assertIsNot(first, second)
+
+    def test_top_processes_have_the_expected_shape(self):
+        """Kontraktni test kontroluje jen pritomnost klicu, tohle ma vlastni."""
+        processes = get_top_processes(TOP_PROCESSES_N)
+        self.assertGreater(len(processes), 0)
+        self.assertLessEqual(len(processes), TOP_PROCESSES_N)
+        for proc in processes:
+            self.assertEqual(set(proc), {"pid", "name", "cpu", "mem"})
+
+
+if __name__ == "__main__":
+    unittest.main()
