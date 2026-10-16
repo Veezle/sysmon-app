@@ -22,30 +22,20 @@ ALWAYS_PRESENT = (
     "services", "containers",
 )
 
-# Kolektory, ktere Monitor obaluje. Kazdy z nich se da donutit k vyjimce;
-# rozhrani je ruzne, proto se objekt hleda bud na instanci, nebo v modulu.
-INSTANCE_CALLS = {
-    "net": "net",
-    "disk": "disk",
-    "battery": "battery",
-    "battery_history": "battery",
-    "containers": "docker",
+# Hodnota je (atribut na Monitoru, nebo None pro funkci v modulu, jmeno).
+COLLECTOR_CALLS = {
+    "net": ("net", "read"),
+    "disk": ("disk", "read"),
+    "battery": ("battery", "read"),
+    "battery_history": ("battery", "history"),
+    "containers": ("docker", "snapshot"),
+    "loadavg": (None, "get_loadavg"),
+    "processes": (None, "get_top_processes"),
+    "system": (None, "get_system_info"),
+    "gpu": (None, "get_gpu"),
+    "services": (None, "get_services"),
 }
-INSTANCE_METHODS = {
-    "net": "read",
-    "disk": "read",
-    "battery": "read",
-    "battery_history": "history",
-    "containers": "snapshot",
-}
-MODULE_CALLS = {
-    "loadavg": "get_loadavg",
-    "processes": "get_top_processes",
-    "system": "get_system_info",
-    "gpu": "get_gpu",
-    "services": "get_services",
-}
-COLLECTORS = tuple(INSTANCE_CALLS) + tuple(MODULE_CALLS)
+COLLECTORS = tuple(COLLECTOR_CALLS)
 
 # Kolektory, ktere protaci prime(). cpu_percent je tu zamerne chybi: je to
 # prime psutil, ne kolektor, a podstrcit ho by rozbilo i snapshot().
@@ -54,10 +44,10 @@ PRIMED = ("net", "disk", "processes")
 
 def failure(key, monitor):
     """Kontextovy manazer, ktery donuti kolektor pro dany klic vyhodit."""
-    if key in INSTANCE_CALLS:
-        obj = getattr(monitor, INSTANCE_CALLS[key])
-        return mock.patch.object(obj, INSTANCE_METHODS[key], side_effect=RuntimeError(key))
-    return mock.patch(f"sysmon_app.monitor.{MODULE_CALLS[key]}", side_effect=RuntimeError(key))
+    attr, name = COLLECTOR_CALLS[key]
+    if attr is None:
+        return mock.patch(f"sysmon_app.monitor.{name}", side_effect=RuntimeError(key))
+    return mock.patch.object(getattr(monitor, attr), name, side_effect=RuntimeError(key))
 
 
 class SnapshotContractTest(unittest.TestCase):
@@ -111,7 +101,7 @@ class SnapshotContractTest(unittest.TestCase):
     def test_prime_cycles_cpu_and_top_processes(self):
         """AC mluvi i o CPU a komentar u prime() i o procesech - oboji musi nastat.
 
-        Vyjmkovy mechanismus `PRIMED` na to nestaci: `psutil.cpu_percent`
+        Vyjimkovy mechanismus `PRIMED` na to nestaci: `psutil.cpu_percent`
         podstrcit nejde, protoze v `snapshot()` obalene neni a podstrceni by
         rozbilo i jeho.
         """
@@ -179,6 +169,35 @@ class SnapshotContractTest(unittest.TestCase):
         self.assertEqual(failed, {"up": 0.0, "down": 0.0, "total_up": 0, "total_recv": 0})
         self.assertEqual(set(failed), set(Monitor(Settings()).snapshot()["net"]))
 
+    def test_fallback_has_the_same_type_as_the_success_branch(self):
+        """Zamena tvary ve FALLBACKS musi byt videt.
+
+        Klic a jeho nahradni tvar k sobe nic mechanicky nevaze, takze se
+        v tabulce daji prehodit dve hodnoty, ktere obe nejak vypadaji. Testy
+        na pritomnost klicu to nepoznaji - a frontend na to doplati: `{}`
+        v `loadavg` je truthy a spadne na `["1m"].toFixed`, dict v `processes`
+        projde pres `Array.isArray` a karta tise zamrzne.
+
+        Oracle je nezavisly: srovnava se tvar nahradni hodnoty s tvarem, ktery
+        uspesne vratil kolektor. `loadavg` je vyjmuty - jeho kolektor vraci
+        `None` i sam, takze typ uspesne vetve o nem nic nerika.
+        """
+        for key in COLLECTORS:
+            if key == "loadavg":
+                continue
+            with self.subTest(collector=key):
+                monitor = Monitor(Settings())
+                good = monitor.snapshot()[key]
+                with failure(key, monitor):
+                    bad = monitor.snapshot()[key]
+                self.assertIs(type(bad), type(good))
+
+    def test_loadavg_fallback_is_none(self):
+        """`loadavg` ma jako jediny fallback `None`; `{}` rozbije cely render."""
+        monitor = Monitor(Settings())
+        with failure("loadavg", monitor):
+            self.assertIsNone(monitor.snapshot()["loadavg"])
+
     def test_failure_of_one_collector_leaves_the_rest_working(self):
         """Zbytek dashboardu se dal aktualizuje - nezamrzne cely."""
         monitor = Monitor(Settings())
@@ -198,6 +217,8 @@ class SnapshotContractTest(unittest.TestCase):
             second = monitor.snapshot()["containers"]
         self.assertEqual(first, second)
         self.assertIsNot(first, second)
+        # A do hloubky: vnoreny `groups` taky nesmi byt sdileny.
+        self.assertIsNot(first["groups"], second["groups"])
 
     def test_top_processes_have_the_expected_shape(self):
         """Kontraktni test kontroluje jen pritomnost klicu, tohle ma vlastni."""

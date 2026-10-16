@@ -11,6 +11,7 @@ je kazde volani kolektoru obalene pres _safe().
 
 import copy
 import socket
+from functools import partial
 
 import psutil
 
@@ -54,6 +55,11 @@ def _safe(call, fallback):
 
     Kopie je nutna: tvary jsou modulove konstanty a snapshot se predava dal
     (do JSON pro /stats i do SSE proudu), takze by si je volajici prepsali.
+
+    Volani s argumenty se predava pres `partial`, ne pres `lambda`: jmeno
+    funkce se vyhodnoti uz tady, tedy mimo tenhle obal. S lambdou by preklep
+    ve jmenu spadl dovnitr, `except` by ho spolkl a karta by zustala prazdna
+    navzdy - tise a bez chyby kdekoli, presne to, cemu se obal vyhyba.
     """
     try:
         return call()
@@ -84,10 +90,10 @@ class Monitor:
         Kolektory jsou i tady obalene: vyjimka pri startu by jinak shodila
         cely demon, i kdyby slo jen o jednu kartu.
         """
-        _safe(lambda: psutil.cpu_percent(interval=None), None)
+        _safe(partial(psutil.cpu_percent, interval=None), None)
         _safe(self.net.read, FALLBACKS["net"])
         _safe(self.disk.read, FALLBACKS["disk"])
-        _safe(lambda: get_top_processes(TOP_PROCESSES_N), FALLBACKS["processes"])
+        _safe(partial(get_top_processes, TOP_PROCESSES_N), FALLBACKS["processes"])
 
     def snapshot(self):
         """Kompletni stav systemu - pro GET /stats i pro SSE."""
@@ -103,7 +109,7 @@ class Monitor:
             "loadavg": _safe(get_loadavg, FALLBACKS["loadavg"]),
             "disk": _safe(self.disk.read, FALLBACKS["disk"]),
             "processes": _safe(
-                lambda: get_top_processes(TOP_PROCESSES_N), FALLBACKS["processes"]
+                partial(get_top_processes, TOP_PROCESSES_N), FALLBACKS["processes"]
             ),
             "system": _safe(get_system_info, FALLBACKS["system"]),
             "gpu": _safe(get_gpu, FALLBACKS["gpu"]),
@@ -111,8 +117,10 @@ class Monitor:
             "battery_history": _safe(self.battery.history, FALLBACKS["battery_history"]),
             "net": _safe(self.net.read, FALLBACKS["net"]),
             "services": _safe(
-                lambda: get_services(
-                    self.settings.watch_ports, self.settings.ignored_ports
+                partial(
+                    get_services,
+                    self.settings.watch_ports,
+                    self.settings.ignored_ports,
                 ),
                 FALLBACKS["services"],
             ),
