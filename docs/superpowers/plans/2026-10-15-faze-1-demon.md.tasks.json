@@ -55,7 +55,7 @@
     {
       "id": 6,
       "subject": "Task 7: Monitor a kontrakt snapshotu",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1,
         2,
@@ -63,7 +63,7 @@
         4,
         5
       ],
-      "description": "**Goal:** `Monitor.snapshot()` skládající dnešních 16 klíčů (+ `cpu_temp`, když ho stroj umí).\n\n**Files:** Create `sysmon_app/monitor.py`; Test `tests/test_snapshot_contract.py`\n\n**Acceptance Criteria:**\n- Snapshot má vždy přesně 16 klíčů; `cpu_temp` jen když není `None`\n- `Monitor(settings)` bere konfiguraci, `watch_ports` tečou do `get_services`\n- `prime()` nastaví baseline pro `net`, `disk` i CPU\n- V kontraktu nejsou `restart_container`/`kill_process`\n\n**Verify:** `python3 -m unittest tests.test_snapshot_contract -v` → PASS, 6 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/monitor.py\", \"tests/test_snapshot_contract.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_snapshot_contract -v\", \"acceptanceCriteria\": [\"16 klíčů vždy, cpu_temp podmíněně\", \"watch_ports z Settings do get_services\", \"prime() nastaví baseline\", \"žádné stopy po akcích\"]}\n```"
+      "description": "**Goal:** `Monitor.snapshot()` skládající dnešních 16 klíčů (+ `cpu_temp`, když ho stroj umí).\n\n**Files:** Create `sysmon_app/monitor.py`; Test `tests/test_snapshot_contract.py`\n\n**Acceptance Criteria:**\n- Snapshot má vždy přesně 16 klíčů; `cpu_temp` jen když není `None`\n- `Monitor(settings)` bere konfiguraci, `watch_ports` tečou do `get_services`\n- `prime()` nastaví baseline pro `net`, `disk` i CPU\n- V kontraktu nejsou `restart_container`/`kill_process`\n\n**Verify:** `python3 -m unittest tests.test_snapshot_contract -v` → PASS, 17 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/monitor.py\", \"tests/test_snapshot_contract.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_snapshot_contract -v\", \"acceptanceCriteria\": [\"16 klíčů vždy, cpu_temp podmíněně\", \"watch_ports z Settings do get_services\", \"prime() nastaví baseline\", \"žádné stopy po akcích\"]}\n```"
     },
     {
       "id": 12,
@@ -124,5 +124,5 @@
       "description": "**Goal:** Zdokumentovat démona a ověřit, že dává stejná data jako `sysmon` — tedy že fáze 1 je hotová.\n\n**Files:** Create `README.md`\n\n**Acceptance Criteria:**\n- `python3 -m unittest discover -s tests -t . -v` je celé zelené\n- V prohlížeči na `localhost:8430` se vykreslí stejné karty jako `sysmon` na 8420\n- README dokumentuje dočasný frontend i mrtvá tlačítka\n- README říká nahlas, že server je na všech rozhraních\n\n**Verify:** oba produkty vedle sebe: `curl -s localhost:8420/stats` a `curl -s localhost:8430/stats` dají srovnatelná čísla; karty v prohlížeči odpovídají\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t . -v\", \"acceptanceCriteria\": [\"celá sada zelená\", \"karty na 8430 odpovídají 8420\", \"README dokumentuje dočasný frontend\", \"README přiznává poslech na všech rozhraních\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-10-16T01:05:00+02:00"
+  "lastUpdated": "2026-10-16T02:20:00+02:00"
 }

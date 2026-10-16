@@ -23,7 +23,8 @@ Fáze 1 (démon) rozpracovaná. Návrh je v
 `docs/superpowers/plans/2026-10-15-faze-1-demon.md`, průběh v `.tasks.json` vedle
 plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
-(`docker`). Zbývá `monitor`, `feed`, `server`, `__main__` a ověření.
+(`docker`), Task 7 (`monitor` + kontrakt snapshotu). Zbývá Task 7b (doplnění
+pokrytí kolektorů), pak `feed`, `server`, `__main__` a ověření.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -75,6 +76,12 @@ Postup u jednoho tasku:
   obrany v kódu (`strip()`, slévání zdrojů přes `or`) nebyly nikdy zatížené
   a mutanty procházely. Otázka k čekání: „co na tomhle stroji vypadá jinak než
   ve fixtuře?" — v Tasku 5 to bylo `\n` a tři napájecí zdroje místo jednoho.
+- **Když obal polyká výjimky, jméno se v něm nesmí vyhodnocovat.** `_safe(lambda:
+  get_top_processes(...), …)` v `Monitoru` spolkne i `NameError` z překlepu:
+  karta zůstane prázdná navždy a sada je zelená. `functools.partial` vyhodnotí
+  jméno v argumentu, tedy mimo obal, a překlep je hlasitý (31 chyb). Totéž
+  platí pro tabulku náhradních tvarů klíčovanou jmény — nic ji s klíči neváže,
+  takže `loadavg` s `{}` projde testy a rozbije render.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
