@@ -77,11 +77,11 @@
     {
       "id": 7,
       "subject": "Task 8: SnapshotFeed — jeden sběrný cyklus pro N odběratelů",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         0
       ],
-      "description": "**Goal:** `SnapshotFeed`, který tiká jednou za `TICK_SEC`, drží poslední snapshot a budí odběratele.\n\n**Files:** Create `sysmon_app/feed.py`; Test `tests/test_feed.py`\n\n**Acceptance Criteria:**\n- Dva odběratelé, jedno sebrání — `monitor.snapshot()` se za tik zavolá jednou\n- `wait_for(last_seq, timeout)` se vrátí, jakmile vznikne nový snapshot\n- Po timeoutu vrací `(seq, None)`, ne výjimku\n- `publish_once()` je veřejné, aby šly testy řídit bez spánku\n- `stop()` ukončí vlákno\n\n**Verify:** `python3 -m unittest tests.test_feed -v` → PASS, 6 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/feed.py\", \"tests/test_feed.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_feed -v\", \"acceptanceCriteria\": [\"dva odběratelé = jedno sehrání\", \"wait_for se vrátí po novém snapshotu\", \"timeout vrací None\", \"publish_once veřejné\", \"stop() ukončí vlákno\"]}\n```"
+      "description": "**Goal:** `SnapshotFeed`, který tiká jednou za `TICK_SEC`, drží poslední snapshot a budí odběratele.\n\n**Files:** Create `sysmon_app/feed.py`; Test `tests/test_feed.py`\n\n**Acceptance Criteria:**\n- Dva odběratelé, jedno sebrání — `monitor.snapshot()` se za tik zavolá jednou\n- `wait_for(last_seq, timeout)` se vrátí, jakmile vznikne nový snapshot\n- Po timeoutu vrací `(seq, None)`, ne výjimku\n- `publish_once()` je veřejné, aby šly testy řídit bez spánku\n- `stop()` ukončí vlákno\n\n**Verify:** `python3 -m unittest tests.test_feed -v` → PASS, 9 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/feed.py\", \"tests/test_feed.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_feed -v\", \"acceptanceCriteria\": [\"dva odběratelé = jedno sehrání\", \"wait_for se vrátí po novém snapshotu\", \"timeout vrací None\", \"publish_once veřejné\", \"stop() ukončí vlákno\"]}\n```"
     },
     {
       "id": 8,
@@ -124,5 +124,5 @@
       "description": "**Goal:** Zdokumentovat démona a ověřit, že dává stejná data jako `sysmon` — tedy že fáze 1 je hotová.\n\n**Files:** Create `README.md`\n\n**Acceptance Criteria:**\n- `python3 -m unittest discover -s tests -t . -v` je celé zelené\n- V prohlížeči na `localhost:8430` se vykreslí stejné karty jako `sysmon` na 8420\n- README dokumentuje dočasný frontend i mrtvá tlačítka\n- README říká nahlas, že server je na všech rozhraních\n\n**Verify:** oba produkty vedle sebe: `curl -s localhost:8420/stats` a `curl -s localhost:8430/stats` dají srovnatelná čísla; karty v prohlížeči odpovídají\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t . -v\", \"acceptanceCriteria\": [\"celá sada zelená\", \"karty na 8430 odpovídají 8420\", \"README dokumentuje dočasný frontend\", \"README přiznává poslech na všech rozhraních\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-10-16T12:36:00+02:00"
+  "lastUpdated": "2026-10-16T14:48:00+02:00"
 }

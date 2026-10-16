@@ -24,13 +24,14 @@ Fáze 1 (démon) rozpracovaná. Návrh je v
 plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
 (`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
-kolektorů). Zbývá `feed`, `server`, `__main__` a ověření.
+kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů). Zbývá
+`server` (Tasky 9 a 10), `__main__` a ověření.
 
-Task 7b měl v plánu **hotovou předlohu testů**, psanou a ověřenou při zakládání
-tasku (86 testů zelených, třináct mutací zabito). Implementátor ji opsal **byte po
-bytu** — a recenzenti v ní přesto naměřili tři vadné piny (inverzní `assertIs`,
-vakuózní assert, test visící při mutantovi). Předloha je tedy **výchozí bod, ne
-spec**: i opsaný kód se recenzuje jako nový.
+Task 7b i Task 8 měly v plánu **hotovou předlohu**, a obě se ukázaly být
+**výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili tři vadné piny,
+u Tasku 8 předloha nepinovala vlastní acceptance kritéria (dvanáct mutovaných
+vlastností přežilo) a její časové piny tiše držely, jen dokud bylo `TICK_SEC`
+vyrazně nad prahem. Opsaný kód se recenzuje jako nový.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -101,6 +102,14 @@ Postup u jednoho tasku:
   (`SystemExit`), protože `except Exception` ho nespolkne; spánek se pinuje
   zvlášť. Záložní brzda z mockovaného spánku funguje jen proto, že `sleep` leží
   vně `try` — přesun dovnitř z ní udělá věčné točení.
+- **Test, který pinuje obsah, nepinuje vlastnost.** `assertEqual(snapshot["n"], 2)`
+  projde i proti mutantovi, který odběratele neprobudí (`wait_for` se dobere po
+  timeoutu a vrátí správná data), i proti mutantovi se dvěma sběry za tik. Široký
+  timeout to schová: `interval=0.01` proti `timeout=5` je 500× rezerva, takže
+  časový pin nic neměří. Kde kritérium říká „hned" nebo „jakmile", patří do testu
+  `assertLess` s prahem blízkým pinované veličině — a **vazba na tu veličinu se má
+  tvrdit**: v Tasku 8 piny držely, jen dokud bylo `TICK_SEC` vyrazně nad prahem,
+  a při jeho zkrácení se tiše vypnuly (odhaleno až měřením s jinou hodnotou).
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
