@@ -168,26 +168,33 @@ class WorkerTest(BatteryTest):
     def test_loop_samples_and_honours_maxlen(self):
         """Dvouminutova smycka se neda cekat - podstrci se interval i hodiny.
 
-        `time.sleep` je mimo `try`, takze vyjimka z nej smycku ukonci; tim se
-        da odsimulovat presne tri vzorky bez cekani.
+        Terminatorem je `time.time()` uvnitr tela: `SystemExit` je
+        `BaseException`, takze ho vnitrni `except Exception` nespolkne. Kdyby
+        smycku ukoncoval jen `sleep`, mutant bez `time.sleep` by test
+        zacyklil misto aby ho shodil. Omezeny seznam spanku je zalozni brzda
+        pro pripad, ze se `time.time()` v mutovanem kode vubec nezavola.
         """
         self.use_supply({
             "BAT0": {"type": "Battery", "capacity": "50", "status": "Charging"},
         })
         collector = battery.BatteryCollector(interval=0, max_samples=2)
-        sleep = mock.patch.object(battery.time, "sleep",
-                                  side_effect=[None, None, StopIteration])
-        sleep.start()
-        self.addCleanup(sleep.stop)
-        clock = mock.patch.object(battery.time, "time", side_effect=[1000, 1060, 1120])
+        clock = mock.patch.object(
+            battery.time, "time", side_effect=[1000, 1060, 1120, SystemExit]
+        )
         clock.start()
         self.addCleanup(clock.stop)
+        sleep = mock.patch.object(battery.time, "sleep", side_effect=[None] * 20)
+        sleep_mock = sleep.start()
+        self.addCleanup(sleep.stop)
 
-        with self.assertRaises(StopIteration):
+        with self.assertRaises(SystemExit):
             collector._loop()
 
         # Tri vzorky, strop dva: zustaly posledni dva a casy jsou relativni.
         self.assertEqual(collector.history(), [{"t": 0, "v": 50}, {"t": 60, "v": 50}])
+        # A mezi vzorky se spi: tri dokoncene vzorky, tri spanky. Bez toho by
+        # smycka tocila CPU naprazdno - a test by to jinak nepoznal.
+        self.assertEqual(sleep_mock.call_count, 3)
 
 
 if __name__ == "__main__":
