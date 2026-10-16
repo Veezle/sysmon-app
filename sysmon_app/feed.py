@@ -48,8 +48,11 @@ class SnapshotFeed:
     def wait_for(self, last_seq, timeout):
         """Pocka na snapshot s jinym seq, nez je last_seq. Vraci (seq, snapshot).
 
-        Po timeoutu vraci (last_seq, None) - volatel to bere jako "nic
-        noveho", ne jako chybu.
+        Kdyz uz feed nejaky ma, vrati se hned. Po timeoutu vraci
+        (last_seq, None) - volatel to bere jako "nic noveho", ne jako chybu.
+        Totez vraci i po `stop()`: zastaveny feed a ticho vypadaji pro
+        volajiciho stejne, takze smycka nad `wait_for` se musi ptat na
+        `is_running()`.
         """
         with self._cond:
             self._cond.wait_for(
