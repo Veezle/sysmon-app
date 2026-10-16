@@ -25,7 +25,9 @@ plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
 (`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
 kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů). Zbývá
-`server` (Tasky 9 a 10), `__main__` a ověření.
+`server` (Tasky 9 a 10), `__main__` (Task 11) a README s ověřením fáze 1
+(Task 12). **Další na řadě je Task 9**; předletová kontrola i past předaná
+Tasku 10 jsou zapsané v plánu u příslušných sekcí.
 
 Task 7b i Task 8 měly v plánu **hotovou předlohu**, a obě se ukázaly být
 **výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili tři vadné piny,
@@ -110,6 +112,15 @@ Postup u jednoho tasku:
   `assertLess` s prahem blízkým pinované veličině — a **vazba na tu veličinu se má
   tvrdit**: v Tasku 8 piny držely, jen dokud bylo `TICK_SEC` vyrazně nad prahem,
   a při jeho zkrácení se tiše vypnuly (odhaleno až měřením s jinou hodnotou).
+- **Předloha v plánu je výchozí bod, ne spec.** Tasky 7b i 8 měly v plánu hotový
+  kód, a obě předlohy nepinovaly, co slibovaly — u Tasku 8 přežilo dvanáct
+  mutovaných vlastností. Recenzent se proto nemá ptát „odpovídá to zadání?", ale
+  **„které kritérium to vlastně pinuje?"** — a měřit to mutantami, ne čtením.
+- **Recenzní smyčka se musí zastavit.** Task 8 měl tři kola recenzí a čtyři
+  opravné commity; poslední kola už přinášela jednořádkovky. Stop pravidlo, které
+  se osvědčilo: poslední kolo ověřuje **jen deltu**, opravují se **jen blokující**
+  nálezy a všechno ostatní se zapíše do plánu jako vědomá mez. Bez toho se smyčka
+  nezastaví, protože každé kolo něco najde.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
