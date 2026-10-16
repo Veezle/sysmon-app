@@ -276,7 +276,11 @@ class StreamTest(SseTestCase):
         second = read_chunk(f)
         elapsed = time.monotonic() - started
 
-        self.assertEqual(data_payload(second)["n"], data_payload(first)["n"] + 1)
+        # Starsi cislo by znamenalo, ze handler posila to same znova. Presne
+        # `+1` by ale tvrdilo vic, nez feed slibuje: je "latest wins", takze
+        # kdyz handler pod zatezi zmeska tik, posle rovnou novejsi snapshot
+        # (namereno 3 -> 5) - a to je spravne, ne vada.
+        self.assertGreater(data_payload(second)["n"], data_payload(first)["n"])
         # Tik je 0.05 s; prah je 20x tolik, ale ne 500x - siroky timeout by
         # propustil i smycku, ktera data posle az za vtertinu.
         self.assertLess(elapsed, 1.0)
@@ -358,12 +362,16 @@ class KeepaliveTest(SseTestCase):
 
         self.assertIsNotNone(frame, "spojeni se zavrelo misto keep-alive")
         self.assertTrue(frame.startswith(b":"), f"ramec neni komentar: {frame!r}")
-        # Prahy v nasobcich podstrcene hodnoty, a tesne: namereny rozptyl je
-        # pod 1 % (25 behu na hodnotu: 0,1502-0,1514 pri 0,15 a 0,5001-0,5013
-        # pri 0,5), takze siroke okno nic neospravedlnuje - propustilo by
-        # timeout zadratovany napevno.
-        self.assertGreater(elapsed, keepalive * 0.8, "keep-alive prisel pred timeoutem")
-        self.assertLess(elapsed, keepalive * 1.25, "keep-alive nedorazil vcas")
+        # Prahy jsou nasobky podstrcene hodnoty, ale sirsi nez rozptyl:
+        # pod zatezi (32x `yes` na nice 0, test na nice 19) se mereny cas
+        # rozlije na 0,66x-1,37x hodnoty - klient je planovany pozde, takze
+        # cas zacatku i konce mereni ujizdi. Kdyz se mez nastavi tesne, zacne
+        # test selhavat falesne a prestane se dat rozeznat vada od sumu.
+        # Pin nedrzi tesnost oken, ale to, ze se pocitaji z podstrcene
+        # konstanty a jsou dve: okna (0,5k; 1,6k) pro 0,15 a 0,5 jsou
+        # disjunktni, takze zadny zadratovany timeout neprojde obema.
+        self.assertGreater(elapsed, keepalive * 0.5, "keep-alive prisel pred timeoutem")
+        self.assertLess(elapsed, keepalive * 1.6, "keep-alive nedorazil vcas")
         # A po komentari spojeni zije dal - jinak by ho klient bral jako konec.
         self.assertIsNotNone(again, "po prvnim keep-alive se spojeni zavrelo")
         self.assertTrue(again.startswith(b":"), f"ramec neni komentar: {again!r}")
