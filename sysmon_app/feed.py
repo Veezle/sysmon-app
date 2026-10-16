@@ -50,9 +50,9 @@ class SnapshotFeed:
 
         Kdyz uz feed nejaky ma, vrati se hned. Po timeoutu vraci
         (last_seq, None) - volatel to bere jako "nic noveho", ne jako chybu.
-        Totez vraci i po `stop()`: zastaveny feed a ticho vypadaji pro
-        volajiciho stejne, takze smycka nad `wait_for` se musi ptat na
-        `is_running()`.
+        Totez vraci i po `stop()` - a to okamzite, ne po timeoutu: naivni
+        smycka nad `wait_for` se po stopu roztočí na plny plyn, ne na pomaly
+        keep-alive. Smycka se proto musi ptat na `is_running()`.
         """
         with self._cond:
             self._cond.wait_for(

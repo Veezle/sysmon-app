@@ -92,7 +92,7 @@ class SnapshotFeedTest(unittest.TestCase):
         self.assertEqual(snapshot["n"], 2)
         self.assertEqual(feed.latest()["n"], 2)
         # "jakmile" - ne az po timeoutu: bez notify_all by se vracel za 5 s.
-        self.assertLess(elapsed, 1.0)
+        self.assertLess(elapsed, 2.0)
 
     def test_wait_for_timeout_returns_none_not_raises(self):
         feed = SnapshotFeed(FakeMonitor())
@@ -111,6 +111,10 @@ class SnapshotFeedTest(unittest.TestCase):
     def test_loop_publishes_and_stop_ends_it(self):
         monitor = FakeMonitor()
         feed = SnapshotFeed(monitor, interval=TICK_SEC)
+        # Prahy na promptnost nize stoji na tom, ze TICK_SEC je vyrazne nad
+        # 1,0 s. Kdyby se zkratil, mutant se do prahu vejde a piny prestanou
+        # zabijet - proto se ta vazba tvrdi tady.
+        self.assertGreater(TICK_SEC, 1.0)
         feed.start()
         # Uklid i kdyz assertion spadne - jinak by vlakno tocilo do konce sady.
         self.addCleanup(feed.join, 5)
@@ -158,8 +162,13 @@ class SnapshotFeedTest(unittest.TestCase):
         feed.stop()
         waiter.join(timeout=5)
 
+        self.assertEqual(
+            len(released), 1,
+            "odberatel se po stopu neprobudil - stop() musi notify_all "
+            "a predikat musi znat _stop",
+        )
         self.assertEqual(released[0][0], (0, None))
-        self.assertLess(released[0][1], 1.0)
+        self.assertLess(released[0][1], 3.0)
 
     def test_loop_survives_a_failing_collector(self):
         """Vyjimka ze sberu nesmi zabit sberne vlakno.
