@@ -25,22 +25,22 @@ plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
 (`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
 kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů), Task 9
-(`server` — SPA a `/stats`), Task 10 (SSE proud na `/events`). Zbývá `__main__`
-(Task 11) a README s ověřením fáze 1 (Task 12). **Další na řadě je Task 11**;
-předletová kontrola i pasti předané Tasku 11 (stav je na instanci serveru, ne na
-třídě `Handler`; `feed.start()` negarantuje snapshot před `serve()`) jsou
-zapsané v plánu u jeho sekce.
+(`server` — SPA a `/stats`), Task 10 (SSE proud na `/events`), Task 11
+(`__main__` — spustitelný démon). **Zbývá jen Task 12** (README a end-to-end
+ověření fáze 1); jeho nálezy a meze předané z Tasku 11 (useknuté SSE proudy při
+ukončení, startovní URL v logu) jsou zapsané v plánu u jeho sekce.
 
-Task 7b, Task 8, Task 9 i Task 10 měly v plánu **hotovou předlohu**, a všechny
-čtyři se ukázaly být **výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili
-tři vadné piny, u Tasku 8 předloha nepinovala vlastní acceptance kritéria
-(dvanáct mutovaných vlastností přežilo) a její časové piny tiše držely, jen dokud
-bylo `TICK_SEC` vyrazně nad prahem, u Tasku 9 nechalo devět plánových testů projít
-sedm mutantů (dva z nich přitom porušovaly acceptance kritéria) a trasu
-`/static/` netestovalo po drátě vůbec, u Tasku 10 nechala předloha ve smyčce
-chybějící výstup po `stop()` (past, kterou přitom sama popsala jako závaznou)
-a její tři testy nepokrývaly dvě ze čtyř kritérií. Opsaný kód se recenzuje jako
-nový.
+Task 7b, Task 8, Task 9, Task 10 i Task 11 měly v plánu **hotovou předlohu**,
+a všechny se ukázaly být **výchozím bodem, ne spec**: u 7b v ní recenzenti
+naměřili tři vadné piny, u Tasku 8 předloha nepinovala vlastní acceptance
+kritéria (dvanáct mutovaných vlastností přežilo) a její časové piny tiše držely,
+jen dokud bylo `TICK_SEC` vyrazně nad prahem, u Tasku 9 nechalo devět plánových
+testů projít sedm mutantů (dva z nich přitom porušovaly acceptance kritéria)
+a trasu `/static/` netestovalo po drátě vůbec, u Tasku 10 nechala předloha ve
+smyčce chybějící výstup po `stop()` (past, kterou přitom sama popsala jako
+závaznou) a její tři testy nepokrývaly dvě ze čtyř kritérií, u Tasku 11 pinoval
+předepsaný `Verify` jen předpoklad jednoho kritéria ze čtyř (a `--port` mimo
+rozsah končil tracebackem). Opsaný kód se recenzuje jako nový.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -170,6 +170,28 @@ Postup u jednoho tasku:
   jen jedno `\n`, prošel **všemi 120 testy**, a přitom by `EventSource`
   nevyvolal ani jednu událost. Když test skládá rámec z prefixu a parsovaného
   obsahu, kontroluj i **oddělovač**: přesně tam se ta chyba schová.
+- **Měření na izolované funkci není měření produktu.** Předletová kontrola pro
+  Task 11 tvrdila (a já ji tak zapsal do plánu), že `feed.stop()` ukončí otevřené
+  SSE proudy čistě — „naměřeno curlem, `exit 0`". Měření ale běželo na handleru
+  v **izolaci, s procesem, který žil dál**; na skutečné výstupní cestě démona se
+  proud usekne (`curl` rc 18, ukoncovací chunk nedorazí, 5/5 běhů), protože
+  `sys.exit` zabije daemon vlákna handlerů. Než něco prohlásím za změřené, ptám
+  se: **běželo to na té cestě, kterou používá produkt, nebo jen na té funkci?**
+  Do plánu patří jen to druhé jako „změřeno v izolaci".
+- **`server_close()` na daemon vlákna nečeká — a „zjevná oprava" je past.**
+  `ThreadingMixIn._Threads.append` daemon vlákna **zahazuje**, takže `_threads`
+  zůstane prázdné a `server_close()` se vrátí za 0,000 s i s handlerem
+  zaseknutým v zápisu (naměřeno). Přepnout `daemon_threads` na `False` join
+  zapne — a `Ctrl+C` pak neukončí proces, protože handler zaseknutý u odběratele,
+  který nečte, visí neomezeně (>60 s, naměřeno). Když ukončení démona potřebuje
+  milost, musí být **ohraničená deadline**, ne `join` bez ní.
+- **Dvě pasti v měřicím harnessu, které vypadají jako nález.** (a) Kopíruješ-li
+  repo do `/tmp` a mutuješ **řádky** (ne tvar), smaž `__pycache__` a použij
+  `PYTHONDONTWRITEBYTECODE=1` — mutant se stejnou velikostí souboru si vezme
+  zastaralý `.pyc` a „přežije", i když je zabitý (naměřeno u mutantu, který jen
+  prohazoval pořadí). (b) Substring aserce propustí víc, než si myslíš:
+  `assertIn("konec", stdout)` přežije i `konecX`; kde jde o text hlášky, pinuj
+  přesnou hodnotu.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
@@ -180,7 +202,7 @@ Postup u jednoho tasku:
 python3 -m unittest discover -s tests -t . -v   # celá sada
 python3 -m unittest tests.test_rates -v         # jeden modul
 
-python3 -m sysmon_app                           # až vznikne v Tasku 11
+python3 -m sysmon_app                           # démon na 8430 (--host/--port přebijí config)
 ```
 
 Závislost je **jen `psutil`** (`pacman -S python-psutil`). Žádný build step,
@@ -198,7 +220,7 @@ Balíček `sysmon_app/`:
 | `feed.py` | `SnapshotFeed` — jeden sběrný cyklus pro N odběratelů *(Task 8)* |
 | `monitor.py` | `Monitor.snapshot()` — kontrakt *(Task 7)* |
 | `server.py` | HTTP: SPA, `/stats`, `/events` (SSE) |
-| `__main__.py` | vstupní bod *(Task 11)* |
+| `__main__.py` | vstupní bod — `python3 -m sysmon_app` |
 | `web/` | dočasný frontend, kopie ze `sysmonu`; fáze 2 ho nahradí |
 
 ### Jeden sběrný cyklus, ne jeden na klienta
