@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sysmon</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+  <div class="brand">
+    <h1 id="hostname">–</h1>
+    <div class="hostline">
+      <span>UP <b id="uptime">–</b></span>
+    </div>
+  </div>
+  <div class="system-status">
+    <span class="dot" id="dot"></span>
+    <span>Online</span>
+  </div>
+</header>
+
+  <div class="card" id="cpu-card">
+    <div class="row">
+      <span class="label">CPU Load</span>
+      <span class="val"><span id="cpu">–</span><span class="unit">%</span></span>
+    </div>
+    <div class="bar"><div class="fill" id="cpu-bar"></div></div>
+    <div class="sub" id="cpu-meta"></div>
+    <div class="cores" id="cores"></div>
+  </div>
+
+  <div class="card" id="gpu-card">
+    <div class="row">
+      <span class="label" id="gpu-label">GPU Device</span>
+      <span class="val"><span id="gpu">–</span><span class="unit" id="gpu-unit">%</span></span>
+    </div>
+    <div class="bar"><div class="fill" id="gpu-bar"></div></div>
+    <div class="sub" id="gpu-sub"></div>
+  </div>
+
+  <div class="card" id="mem-card">
+    <div class="row">
+      <span class="label">RAM</span>
+      <span class="val"><span id="mem">–</span><span class="unit">%</span></span>
+    </div>
+    <div class="bar"><div class="fill" id="mem-bar"></div></div>
+    <div class="sub" id="mem-sub"></div>
+    <div class="sub" id="swap-sub"></div>
+  </div>
+
+  <div class="card" id="battery-card">
+    <div class="row">
+      <span class="label">Battery</span>
+      <span class="val"><span id="battery-percent">–</span><span class="unit">%</span></span>
+    </div>
+    <div class="bar"><div class="fill" id="battery-bar"></div></div>
+    <div class="sub" id="battery-status">Načítání stavu baterie…</div>
+    <div class="sub" id="battery-power"></div>
+    <div class="battery-chart-wrap" id="battery-chart-wrap" style="display:none">
+      <div class="battery-chart-label">Posledních 24 h</div>
+      <canvas class="battery-chart" id="battery-chart"></canvas>
+    </div>
+  </div>
+
+  <div class="card" id="network-card">
+    <div class="row">
+      <span class="label">Net Down</span>
+      <span class="val" id="net-down">–</span>
+    </div>
+    <div class="row" style="margin-bottom:6px">
+      <span class="label">Net Up</span>
+      <span class="val" id="net-up">–</span>
+    </div>
+    <div class="sub" id="net-sub"></div>
+  </div>
+
+  <div class="card" id="disk-card">
+    <div class="row">
+      <span class="label">Disk /</span>
+      <span class="val"><span id="disk-pct">–</span><span class="unit">%</span></span>
+    </div>
+    <div class="bar"><div class="fill" id="disk-bar"></div></div>
+    <div class="sub" id="disk-sub"></div>
+    <div class="sub" id="disk-io"></div>
+  </div>
+
+  <div class="card" id="services-card">
+    <div class="row">
+      <span class="label">Listening Ports</span>
+      <span class="val svc" id="svc-count">–</span>
+    </div>
+    <div id="services-list">
+      <div class="off">Načítání…</div>
+    </div>
+  </div>
+
+  <div class="card" id="proc-card">
+    <div class="row">
+      <span class="label">Top Processes</span>
+      <span class="val svc" id="proc-count">top 5</span>
+    </div>
+    <div id="proc-list">
+      <div class="off">Načítání…</div>
+    </div>
+  </div>
+
+  <div class="card" id="docker-card">
+    <div class="row">
+      <span class="label">Docker Containers</span>
+      <span class="val svc" id="docker-count">–</span>
+    </div>
+    <div id="docker-containers">
+      <div class="off">Načítání kontejnerů…</div>
+    </div>
+  </div>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>
