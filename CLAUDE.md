@@ -209,6 +209,15 @@ Postup u jednoho tasku:
   ověřit, že démon dává stejná data jako `sysmon`; kdyby ta čísla zůstala jen
   v hlášení subagenta, nedá se z repa zjistit, co a kdy se měřilo. Naměřené
   hodnoty patří do uzavření tasku v plánu.
+- **`kill -INT` na proces z neinteraktivního shellu je tichý no-op.** Bash dá
+  background úloze (bez job control) `SIGINT` i `SIGQUIT` na **ignorováno**
+  a Python zděděné `SIG_IGN` neruší — vlastní handler pro `SIGINT` si
+  nenainstaluje. Naměřeno při ověřování mergi Tasku 12: `python3 -m sysmon_app`
+  spuštěný jako `(setsid nohup … &)` měl v `/proc/PID/status` `SigIgn` s bitem
+  pro SIGINT, takže „Ctrl+C démona neukončí" vypadalo jako nález, ačkoli šlo
+  o měření. Kdo ukončení měří signálem, ať si **nejdřív přečte
+  `/proc/PID/status`**, nebo proces spustí pod pty (`script -qec "…" /dev/null`);
+  pod pty naměřeno: `SIGINT` → `konec`, `COMMAND_EXIT_CODE=0`, port uvolněný.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
