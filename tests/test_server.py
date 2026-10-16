@@ -156,10 +156,18 @@ def check_no_executable_inline_code(case, html):
         if re.search(r"\son[a-z]+\s*=", tag):
             case.fail(f"inline obsluha udalosti: {tag!r}")
         for ref in re.findall(r'(?:src|href)\s*=\s*"([^"]*)"', tag):
-            # javascript: a data: jsou spustitelny kod v odkazu - pin na
-            # "telo znacky" by je pustil. Vite do index.html nic neinlinuje;
-            # kdyby to nekdy udelal, chyba ma byt hlasita a ma se vysetrit,
-            # ne rozsirit pin.
+            # javascript: a data: jsou v src/href zakazane zamerne: je to
+            # spustitelny kod v odkazu a pin na "telo znacky" by je pustil.
+            #
+            # Planovany tvar indexu zadne data: nevyrobi. Ikona jde pres
+            # public/, a root-absolutni odkaz Vite neinlinuje nikdy; `link`
+            # s rel ze seznamu noInlineLinkRels (icon, stylesheet, preload,
+            # ...) se neinlinuje taky.
+            #
+            # Obecne to ale neplati: relativne odkazany obrazek pod inline
+            # limitem (~4 kB) Vite vlozi do <img src="data:..."> - namereno
+            # na Vite 8.3.4. Kdyby pin na buildu zapalil, je to hlasite
+            # a ma se to vysetrit, ne rozsirit pin.
             for scheme in ("javascript:", "data:"):
                 case.assertFalse(ref.startswith(scheme),
                                  f"spustitelny odkaz {ref!r} v {tag!r}")
