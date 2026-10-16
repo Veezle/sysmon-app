@@ -25,7 +25,7 @@ HOST = "127.0.0.1"
 
 SOCKET_TIMEOUT = 3.0         # nad kazdym prahem nize, aby chybejici ramec spadl
 WAIT_TIMEOUT = 2.0           # deadline pro "neco se stane do..." smycky
-KEEPALIVE = 0.2              # podstrcena SSE_KEEPALIVE_SEC: 20 s by test zabilo
+KEEPALIVE_VALUES = (0.15, 0.5)   # podstrcena SSE_KEEPALIVE_SEC: 20 s by test zabilo
 
 
 class FakeMonitor:
@@ -84,10 +84,21 @@ def read_chunk(f):
 
 
 def data_payload(frame):
-    """Obsah ramce `data: ...` jako JSON. Jiny ramec je chyba testu."""
+    """Obsah ramce `data: ...` jako JSON. Jiny tvar ramce je chyba testu.
+
+    Pinuje se cely tvar udalosti: `data: ` + JSON + prazdny radek. Chunk
+    framing spravny byt muze a udalost presto nedorazi - `EventSource`
+    vyvola udalost az po prazdnem radku, takze `\\n` misto `\\n\\n` (nebo
+    zadny oddelovac) znamena data, ktera zustanou v bufferu klienta viset
+    a v renderu se nikdy neobjevi.
+    """
     if not frame.startswith(b"data: "):
         raise AssertionError(f"ramec neni data: {frame!r}")
-    return json.loads(frame[len(b"data: "):].decode("utf-8"))
+    payload = json.loads(frame[len(b"data: "):].decode("utf-8"))
+    expected = b"data: " + json.dumps(payload).encode("utf-8") + b"\n\n"
+    if frame != expected:
+        raise AssertionError(f"ramec nema tvar SSE udalosti: {frame!r} != {expected!r}")
+    return payload
 
 
 class SseTestCase(unittest.TestCase):
@@ -118,7 +129,7 @@ class SseTestCase(unittest.TestCase):
         sock.sendall(b"GET /events HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
         return sock, sock.makefile("rb")
 
-    def close_hard(self, sock, f):
+    def close_hard(self, sock, f=None):
         """Zavre odberatele tvrde (RST), jako kdyz zmizi okno prohlizece.
 
         `sock.close()` samo fd nezavre - `makefile` drzi referenci, takze by
@@ -127,7 +138,8 @@ class SseTestCase(unittest.TestCase):
         """
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
                         struct.pack("ii", 1, 0))
-        f.close()
+        if f is not None:
+            f.close()
         sock.close()
 
     def wait_seq(self, count, timeout=WAIT_TIMEOUT):
@@ -192,9 +204,48 @@ class HeadersTest(SseTestCase):
         self.assertIn(" 200 ", status, status)
         self.assertEqual(headers.get("content-type"), "text/event-stream; charset=utf-8")
         self.assertEqual(headers.get("transfer-encoding"), "chunked")
+        # `no-store` k proudu patri: bez nej si ho muze prohlizec nebo
+        # prostrednik drzet a druhy odberatel dostane stary snapshot.
+        self.assertEqual(headers.get("cache-control"), "no-store")
         # Content-Length u proudu nema co delat: telo nema konec, takze by
         # klient cekal na bajty, ktere nikdy neprijdou.
         self.assertNotIn("content-length", headers)
+
+
+class AbortedRequestTest(SseTestCase):
+    def test_request_aborted_before_headers_does_not_reach_handle_error(self):
+        """K3 plati i pro klienta, ktery odejde jeste behem hlavicek.
+
+        `end_headers()` pise do socketu, ktery uz muze byt mrtvy (klient
+        poslal RST hned po pozadavku). Kdyz `try` zacina az za hlavickami,
+        vyleti odtud ConnectionResetError do `socketserver.handle_error`
+        a na stderr zustane plny traceback - tise, protoze odpoved uz je
+        rozepsana.
+
+        Je to zavod: jednim pokusem se okno trefi jen nekdy (RST i hlavicky
+        jsou na drate v mikrosekundach), proto se jich dela vic.
+        """
+        attempts = 30
+        threads_before = set(threading.enumerate())
+        errors = []
+
+        with mock.patch.object(
+            socketserver.BaseServer, "handle_error",
+            lambda srv, request, client_address: errors.append(client_address),
+        ):
+            for _ in range(attempts):
+                sock = socket.create_connection((HOST, self.port),
+                                                timeout=SOCKET_TIMEOUT)
+                sock.sendall(b"GET /events HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+                self.close_hard(sock)     # RST hned, bez cteni odpovedi
+
+            # Nez se vyhodnoti, musi vsechny handlery dobehnout - jinak by
+            # pozdejsi zavolani handle_error prislo az po aserci.
+            self.assertEqual(self.wait_threads_gone(threads_before), [],
+                             "handlery zrusenych pozadavku nedobehly")
+
+        self.assertEqual(errors, [],
+                         f"vyjimka prosla do handle_error ({attempts} pokusu)")
 
 
 class StreamTest(SseTestCase):
@@ -259,7 +310,7 @@ class StreamTest(SseTestCase):
         self.start_server(interval=60)
         self.wait_seq(1)
 
-        with mock.patch.object(server, "SSE_KEEPALIVE_SEC", KEEPALIVE):
+        with mock.patch.object(server, "SSE_KEEPALIVE_SEC", KEEPALIVE_VALUES[0]):
             _, f = self.open_stream()
             read_head(f)
             frame = read_chunk(f)
@@ -280,11 +331,18 @@ class KeepaliveTest(SseTestCase):
         datech (interval 0.05) by komentar nikdy neprisel a test by pinoval
         jen to, ze data tecou.
         """
+        # Dve ruzne hodnoty: okno se pocita z podstrcene konstanty, takze
+        # mutant s napevno zadratovanym timeoutem padne aspon na jedne z nich.
+        for keepalive in KEEPALIVE_VALUES:
+            with self.subTest(keepalive=keepalive):
+                self.check_keepalive(keepalive)
+
+    def check_keepalive(self, keepalive):
         self.start_server(interval=60)
         self.wait_seq(1)
 
-        with mock.patch.object(server, "SSE_KEEPALIVE_SEC", KEEPALIVE):
-            _, f = self.open_stream()
+        with mock.patch.object(server, "SSE_KEEPALIVE_SEC", keepalive):
+            sock, f = self.open_stream()
             read_head(f)
             self.feed.publish_once()          # jeden snapshot, pak ticho
             self.assertEqual(data_payload(read_chunk(f))["n"], 2)
@@ -293,13 +351,19 @@ class KeepaliveTest(SseTestCase):
             frame = read_chunk(f)
             elapsed = time.monotonic() - started
             again = read_chunk(f)
+            # Spojeni zavrit hned: tenhle handler uz jen posila keep-alive
+            # a v sade by zbytecne zil dal.
+            f.close()
+            sock.close()
 
         self.assertIsNotNone(frame, "spojeni se zavrelo misto keep-alive")
         self.assertTrue(frame.startswith(b":"), f"ramec neni komentar: {frame!r}")
-        # Prahy v nasobcich podstrcene hodnoty: spodni zabiji keep-alive bez
-        # cekani na timeout, horni keep-alive, ktery vubec neprijde.
-        self.assertGreater(elapsed, KEEPALIVE / 2, "keep-alive prisel pred timeoutem")
-        self.assertLess(elapsed, KEEPALIVE * 5, "keep-alive nedorazil vcas")
+        # Prahy v nasobcich podstrcene hodnoty, a tesne: namereny rozptyl je
+        # pod 1 % (25 behu na hodnotu: 0,1502-0,1514 pri 0,15 a 0,5001-0,5013
+        # pri 0,5), takze siroke okno nic neospravedlnuje - propustilo by
+        # timeout zadratovany napevno.
+        self.assertGreater(elapsed, keepalive * 0.8, "keep-alive prisel pred timeoutem")
+        self.assertLess(elapsed, keepalive * 1.25, "keep-alive nedorazil vcas")
         # A po komentari spojeni zije dal - jinak by ho klient bral jako konec.
         self.assertIsNotNone(again, "po prvnim keep-alive se spojeni zavrelo")
         self.assertTrue(again.startswith(b":"), f"ramec neni komentar: {again!r}")

@@ -145,13 +145,13 @@ class Handler(BaseHTTPRequestHandler):
 
         # Spojeni je jednosmerne a nema konec - po navratu z do_GET se zavre.
         self.close_connection = True
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Transfer-Encoding", "chunked")
-        self.end_headers()
-
         try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+
             while True:
                 seq, snapshot = feed.wait_for(last_seq, timeout=SSE_KEEPALIVE_SEC)
                 if snapshot is None:
