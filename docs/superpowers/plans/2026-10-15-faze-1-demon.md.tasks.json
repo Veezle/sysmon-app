@@ -96,7 +96,7 @@
     {
       "id": 9,
       "subject": "Task 10: SSE proud na /events",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         8
       ],
