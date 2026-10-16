@@ -79,6 +79,11 @@ démonem na 8430 i na 8420.
 k ověření démona — kontrakt snapshotu se nemění, takže stará UI musí fungovat
 proti novému démonu. Fáze 2 ji nahradí Reactem.
 
+Kopie je věrná i v maličkostech: i titulek stránky zůstal ze `sysmonu`
+(`<uživatel>@<stroj> — Sysmon`), takže kdo pustí oba produkty vedle sebe,
+rozezná je podle portu v adrese, ne podle titulku. Fáze 2 ho vymění spolu
+s frontendem.
+
 Pozor: tlačítka na ukončení procesu a restart kontejneru v téhle kopii jsou
 **mrtvá**. `sysmon-app` nemá routy `/action/*` a nemá ani token, ze kterého
 `app.js` skládá hlavičku. Bez tokenu se požadavek vůbec neodešle a kliknutí
