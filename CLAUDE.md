@@ -25,19 +25,22 @@ plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
 (`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
 kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů), Task 9
-(`server` — SPA a `/stats`). Zbývá SSE proud (Task 10), `__main__` (Task 11)
-a README s ověřením fáze 1 (Task 12). **Další na řadě je Task 10**; předletová
-kontrola i pasti předané Taskům 10 a 11 (stav je na instanci serveru, ne na
+(`server` — SPA a `/stats`), Task 10 (SSE proud na `/events`). Zbývá `__main__`
+(Task 11) a README s ověřením fáze 1 (Task 12). **Další na řadě je Task 11**;
+předletová kontrola i pasti předané Tasku 11 (stav je na instanci serveru, ne na
 třídě `Handler`; `feed.start()` negarantuje snapshot před `serve()`) jsou
-zapsané v plánu u příslušných sekcí.
+zapsané v plánu u jeho sekce.
 
-Task 7b, Task 8 i Task 9 měly v plánu **hotovou předlohu**, a všechny tři se
-ukázaly být **výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili tři vadné
-piny, u Tasku 8 předloha nepinovala vlastní acceptance kritéria (dvanáct
-mutovaných vlastností přežilo) a její časové piny tiše držely, jen dokud bylo
-`TICK_SEC` vyrazně nad prahem, u Tasku 9 nechalo devět plánových testů projít
+Task 7b, Task 8, Task 9 i Task 10 měly v plánu **hotovou předlohu**, a všechny
+čtyři se ukázaly být **výchozím bodem, ne spec**: u 7b v ní recenzenti naměřili
+tři vadné piny, u Tasku 8 předloha nepinovala vlastní acceptance kritéria
+(dvanáct mutovaných vlastností přežilo) a její časové piny tiše držely, jen dokud
+bylo `TICK_SEC` vyrazně nad prahem, u Tasku 9 nechalo devět plánových testů projít
 sedm mutantů (dva z nich přitom porušovaly acceptance kritéria) a trasu
-`/static/` netestovalo po drátě vůbec. Opsaný kód se recenzuje jako nový.
+`/static/` netestovalo po drátě vůbec, u Tasku 10 nechala předloha ve smyčce
+chybějící výstup po `stop()` (past, kterou přitom sama popsala jako závaznou)
+a její tři testy nepokrývaly dvě ze čtyř kritérií. Opsaný kód se recenzuje jako
+nový.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -143,6 +146,30 @@ Postup u jednoho tasku:
   procesu; je to ale stav, který patří instanci — a test, který oba servery staví,
   to odhalí jen tehdy, když je v obou něco k vidění (prázdný feed spadne do
   fallbacku a rozdíl se schová).
+- **Obal, který má výjimku spolknout, musí začít před hlavičkami.** V Tasku 10
+  začínalo `try:` až za `end_headers()`, takže `ConnectionResetError` z hlaviček
+  vyletělo do `socketserver.handle_error` a nechalo na stderr traceback —
+  naměřeno **394 z 400** spojení, když klient poslal `GET` a hned RST, a to
+  i přesto, že komentář o tři řádky níž sliboval opak. Test, který si odpověď
+  **nejdřív přečte**, to okno nikdy netrefí (0 z 400) — proto to předchozí testy
+  neviděly. Okno se pinuje tak, že klient pošle požadavek a **hned** zavře
+  (RST přes `SO_LINGER 0`), bez čtení, a `handle_error` se podstrčí.
+- **Pinuj vazbu, ne naměřenou latenci.** Keep-alive v Tasku 10 se pinoval
+  wall-clock oknem kolem `SSE_KEEPALIVE_SEC`. Jenže horní mez je měření na
+  **klientovi** a pod vyhladověním CPU roste bez hranice — naměřeno **1,37×–2,49×**
+  podstrčené hodnoty (`nice -n 19` proti procesům na `nice 0`), takže test padal
+  falešně (12 běhů: 4 selhání s oknem `(0.8k, 1.25k)`, 1 s `(0.5k, 1.6k)`).
+  Rozšířit ho přitom nejde: aby zůstal zabitý mutant s napevno zadrátovaným
+  timeoutem, musí horní mez zůstat pod ním. Řešení: podstrčit volanou funkci
+  obalem, který si poznamená **argument**, a tvrdit rovnost s konstantou. Je to
+  přísnější (zabilo i `k*1.5`, které okno pouštělo) a nezávislé na plánování
+  (10/10 pod zátěží, kde okno padalo). Obecně: **kde jde pinovat argument místo
+  následku, pinuj argument** — čas je šum, hodnota ne.
+- **Chunk framing není event framing.** Testy Tasku 10 pinovaly chunk (hex
+  velikost + CRLF), ale ne obálku události `data: …\n\n` — mutant, který pošle
+  jen jedno `\n`, prošel **všemi 120 testy**, a přitom by `EventSource`
+  nevyvolal ani jednu událost. Když test skládá rámec z prefixu a parsovaného
+  obsahu, kontroluj i **oddělovač**: přesně tam se ta chyba schová.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
@@ -170,7 +197,7 @@ Balíček `sysmon_app/`:
 | `collectors/` | jeden modul na **oblast**, ne na metriku |
 | `feed.py` | `SnapshotFeed` — jeden sběrný cyklus pro N odběratelů *(Task 8)* |
 | `monitor.py` | `Monitor.snapshot()` — kontrakt *(Task 7)* |
-| `server.py` | HTTP: SPA, `/stats` hotové, `/events` (SSE) *(Task 10)* |
+| `server.py` | HTTP: SPA, `/stats`, `/events` (SSE) |
 | `__main__.py` | vstupní bod *(Task 11)* |
 | `web/` | dočasný frontend, kopie ze `sysmonu`; fáze 2 ho nahradí |
 
