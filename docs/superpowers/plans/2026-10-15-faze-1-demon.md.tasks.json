@@ -66,6 +66,15 @@
       "description": "**Goal:** `Monitor.snapshot()` skládající dnešních 16 klíčů (+ `cpu_temp`, když ho stroj umí).\n\n**Files:** Create `sysmon_app/monitor.py`; Test `tests/test_snapshot_contract.py`\n\n**Acceptance Criteria:**\n- Snapshot má vždy přesně 16 klíčů; `cpu_temp` jen když není `None`\n- `Monitor(settings)` bere konfiguraci, `watch_ports` tečou do `get_services`\n- `prime()` nastaví baseline pro `net`, `disk` i CPU\n- V kontraktu nejsou `restart_container`/`kill_process`\n\n**Verify:** `python3 -m unittest tests.test_snapshot_contract -v` → PASS, 6 testů\n\n```json:metadata\n{\"files\": [\"sysmon_app/monitor.py\", \"tests/test_snapshot_contract.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_snapshot_contract -v\", \"acceptanceCriteria\": [\"16 klíčů vždy, cpu_temp podmíněně\", \"watch_ports z Settings do get_services\", \"prime() nastaví baseline\", \"žádné stopy po akcích\"]}\n```"
     },
     {
+      "id": 12,
+      "subject": "Task 7b: Doplnění pokrytí kolektorů (odloženo z Tasků 2–6)",
+      "status": "pending",
+      "blockedBy": [
+        6
+      ],
+      "description": "**Goal:** Dopsat testy na chování kolektorů, které přenosové tasky přinést nemohly a které Task 7 záměrně nechal stranou.\n\n**Files:** Modify `tests/test_rates.py`, `tests/test_battery.py`; Create `tests/test_docker.py`\n\n**Acceptance Criteria:**\n- `disk.read()` po výpadku `disk_io_counters` vrátí `{\"available\": False}` a nespadne\n- dva `NetCollector`y mají oddělený stav (dnes to nepinuje žádný test)\n- `battery.read()` s `power_now = \"0\"` nevyhodí a vrátí `time_remaining_minutes: None`\n- `BatteryCollector._loop` s podstrčeným intervalem a hodinami vzorkuje a drží `maxlen`\n- `DockerCollector` pokrytý mutanty vypsanými v Tasku 7 (bez CLI, timeout, rozbitý JSON, selhání stats, párování podle jména i ID, chybějící `groups`, `_loop` při výjimce)\n- `Monitor` s `groups` z `DockerCollector.snapshot()` nic nedělá, jen ho předá\n\n**Verify:** `python3 -m unittest discover -s tests -t .` → PASS; `python3 -m unittest tests.test_docker -v` → PASS\n\n```json:metadata\n{\"files\": [\"tests/test_rates.py\", \"tests/test_battery.py\", \"tests/test_docker.py\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"disk degradace vraci available False\", \"dva NetCollectory maji oddeleny stav\", \"battery power_now = 0 nevyhodi\", \"battery _loop vzorkuje a drzi maxlen\", \"DockerCollector pokryty mutanty z Tasku 7\", \"Monitor groups jen predava\"]}\n```"
+    },
+    {
       "id": 7,
       "subject": "Task 8: SnapshotFeed — jeden sběrný cyklus pro N odběratelů",
       "status": "pending",
@@ -115,5 +124,5 @@
       "description": "**Goal:** Zdokumentovat démona a ověřit, že dává stejná data jako `sysmon` — tedy že fáze 1 je hotová.\n\n**Files:** Create `README.md`\n\n**Acceptance Criteria:**\n- `python3 -m unittest discover -s tests -t . -v` je celé zelené\n- V prohlížeči na `localhost:8430` se vykreslí stejné karty jako `sysmon` na 8420\n- README dokumentuje dočasný frontend i mrtvá tlačítka\n- README říká nahlas, že server je na všech rozhraních\n\n**Verify:** oba produkty vedle sebe: `curl -s localhost:8420/stats` a `curl -s localhost:8430/stats` dají srovnatelná čísla; karty v prohlížeči odpovídají\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t . -v\", \"acceptanceCriteria\": [\"celá sada zelená\", \"karty na 8430 odpovídají 8420\", \"README dokumentuje dočasný frontend\", \"README přiznává poslech na všech rozhraních\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-10-16T00:50:00+02:00"
+  "lastUpdated": "2026-10-16T01:05:00+02:00"
 }
