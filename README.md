@@ -11,6 +11,7 @@ fázích. Návrh je v `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`.
     python3 -m sysmon_app
 
 Poslouchá na `0.0.0.0:8430` a v prohlížeči je na <http://localhost:8430>.
+Potřebuje **Python 3.11 a novější** (konfiguraci čte stdlib `tomllib`).
 Závislost je jen `psutil` (`pacman -S python-psutil`).
 
 Port je **8430**, ne 8420 — `sysmon` má 8420 a oba mají běžet vedle sebe.
@@ -41,15 +42,17 @@ soubor znamená výchozí hodnoty.
 
     host = "0.0.0.0"          # kvůli telefonu; "127.0.0.1" omezí na localhost
     port = 8430
+    ignored_ports = [53, 631]
 
     [watch_ports]             # které služby karta ukazuje; co tu není, je neviditelné
     22 = "SSH"
     3306 = "MySQL"
 
-    ignored_ports = [53, 631]
-
-(Příklad není úplný výchozí stav — ten sleduje i 5173, 8080 a 8081.)
-Povolené klíče jsou jen `host`, `port`, `watch_ports` a `ignored_ports`.
+Příklad je zkrácený: výchozí `watch_ports` sleduje i 5173, 8080 a 8081
+a výchozí `ignored_ports` je `[53, 111, 631, 5353, 1716, 54321]`. Oba seznamy
+se navíc **nahrazují celé, ne doplňují** — kdo si vypíše vlastní, ten o zbytek
+výchozích přijde. Povolené klíče jsou jen `host`, `port`, `watch_ports`
+a `ignored_ports`.
 
 Rozbitý nebo neznámý klíč se ohlásí i s cestou k souboru — záměrně, tichý
 překlep by vzal uživateli jeho nastavení, aniž by se dozvěděl proč.
@@ -77,11 +80,15 @@ k ověření démona — kontrakt snapshotu se nemění, takže stará UI musí 
 proti novému démonu. Fáze 2 ji nahradí Reactem.
 
 Pozor: tlačítka na ukončení procesu a restart kontejneru v téhle kopii jsou
-**mrtvá**. `sysmon-app` nemá routy `/action/*` a nemá ani žádný token, a `app.js`
-proto skončí hned na `if (!TOKEN)` — kliknutí neudělá nic než hlášku:
+**mrtvá**. `sysmon-app` nemá routy `/action/*` a nemá ani token, ze kterého
+`app.js` skládá hlavičku. Bez tokenu se požadavek vůbec neodešle a kliknutí
+skončí jen hláškou:
 
 > Chybí token — otevři dashboard s ?token=… (token je v ~/.config/sysmon/token).
 
-To je odkaz na soubor i na funkci, které tu záměrně nejsou. Žádný požadavek se
-vůbec neodešle; kdyby se odeslal, server odpoví `501 Unsupported method`
-(nemá `do_POST`). Je to očekávané, ne chyba; fáze 2 ta tlačítka odstraní.
+To je odkaz na soubor i na funkci, které tu záměrně nejsou — a kdo ho poslechne
+a otevře stránku s `?token=…` (třeba tím ze `sysmonu`), tomu si `app.js` token
+uloží a `POST /action/kill` **odešle**: server odpoví `501 Unsupported method`
+(nemá `do_POST`) a tělo odpovědi není JSON, takže `await r.json()` spadne
+a uživatel uvidí „Chyba: …". Ať se klikne jakkoli, nic se neprovede — je to
+očekávané, ne chyba; fáze 2 ta tlačítka odstraní.
