@@ -71,11 +71,13 @@ class LoadStaticTest(unittest.TestCase):
                 self.assertEqual(asset[1], "image/svg+xml")
 
     def test_rejects_traversal(self):
+        """Cil existuje a ma povolenou priponu - odmitne ho jen kontrola cesty.
+
+        Varianta s `../config.py` tu drive byla a nepinovala nic: `.py` neni
+        v allow-listu pripon, takze None prijde driv, nez se vubec resi cesta.
+        """
         with web_fixture.fake_web() as (_root, static, _index):
             with mock.patch.object(server, "STATIC_DIR", static):
-                self.assertIsNone(server.load_static("../config.py"))
-                # Cil existuje a ma povolenou priponu, takze ho odmitne jen
-                # kontrola cesty - ne chybejici soubor.
                 (static.parent / "secret.css").write_text("x", encoding="utf-8")
                 self.assertIsNone(server.load_static("../secret.css"))
 
@@ -105,10 +107,6 @@ class LoadStaticTest(unittest.TestCase):
                 self.assertIsNone(server.load_static("../secret.css"))
                 self.assertIsNone(server.load_static(str(outside)))
 
-    def test_rejects_disallowed_extension(self):
-        self.assertIsNone(server.load_static("index.html"))
-        self.assertIsNone(server.load_static("config.py"))
-
     def test_rejects_disallowed_extension_for_files_that_exist(self):
         """Allow-list plati i na soubory, ktere ve static/ opravdu lezi.
 
@@ -131,29 +129,68 @@ class LoadStaticTest(unittest.TestCase):
                     self.assertIsNone(server.load_static(name), name)
 
 
+def check_no_executable_inline_code(case, html):
+    """Vsechny kontroly inline kodu na jednom miste.
+
+    Pouziva ji fixture i realny build - bez toho by pin po vzniku buildu
+    meril jen nas vlastni literál ve fixture, ne to, co produkt servíruje.
+
+    Zakazany je spustitelny inline kod, ne kazda zminka o scriptu: Vite ma
+    `<script type="module" src="/static/assets/...">` a to je legitimni -
+    kod je v souboru, ne v HTML.
+
+    Hleda se ve skutecnych znackach: skenovat cely text znamena falesny
+    poplach na bezne prose (" text only = 5 " vypada jako on...= atribut).
+
+    Vsechno se porovnava nad malymi pismeny: nazvy HTML znacek jsou
+    case-insensitive, takze `<SCRIPT>alert(1)</SCRIPT>` je stejny inline
+    skript jako `<script>` a na holem podtrzeni by prosel.
+    """
+    lower = html.lower()
+    case.assertNotIn("<style", lower, "CSS patri do static/")
+    for body in re.findall(r"<script\b[^>]*>(.*?)</script>", lower, re.S):
+        case.assertEqual(body.strip(), "", f"inline skript: {body!r}")
+    for tag in re.findall(r"<script\b[^>]*>", lower):
+        case.assertIn("src=", tag, f"skript bez src: {tag}")
+    for tag in re.findall(r"<[a-z][^>]*>", lower):
+        if re.search(r"\son[a-z]+\s*=", tag):
+            case.fail(f"inline obsluha udalosti: {tag!r}")
+        for ref in re.findall(r'(?:src|href)\s*=\s*"([^"]*)"', tag):
+            # javascript: a data: jsou spustitelny kod v odkazu - pin na
+            # "telo znacky" by je pustil. Vite do index.html nic neinlinuje;
+            # kdyby to nekdy udelal, chyba ma byt hlasita a ma se vysetrit,
+            # ne rozsirit pin.
+            for scheme in ("javascript:", "data:"):
+                case.assertFalse(ref.startswith(scheme),
+                                 f"spustitelny odkaz {ref!r} v {tag!r}")
+
+
 class LoadIndexTest(unittest.TestCase):
-    def test_index_has_no_executable_inline_code(self):
-        """Zakazany je spustitelny inline kod, ne kazda zminka o scriptu.
+    def test_fixture_index_has_no_executable_inline_code(self):
+        """Tvar, ktery vydava Vite build, nesmi mit spustitelny inline kod.
 
-        Vite build ma `<script type="module" src="/static/assets/...">` a to
-        je legitimni - kod je v souboru, ne v HTML. Co v HTML byt nesmi, je
-        kod zapsany v tele znacky nebo v `on...=` atributech.
-
-        Vsechno se porovnava nad malymi pismeny: nazvy HTML znacek jsou
-        case-insensitive, takze `<SCRIPT>alert(1)</SCRIPT>` je stejny inline
-        skript jako `<script>` a na holem podtrzeni by prosel.
+        Test se jmenuje podle fixture zamerne: meri nas literál. Ze pin ma
+        zuby, dokazuje `test_pin_fires_on_inline_script`, a ze plati i pro
+        produkt, `test_real_build_index_has_no_executable_inline_code`.
         """
         with web_fixture.fake_web() as (_root, _static, index):
             with mock.patch.object(server, "WEB_DIR", index.parent):
                 text = server.load_index()
-        lower = text.lower()
-        self.assertNotIn("<style", lower)          # CSS patri do static/
-        for tag in re.findall(r"<script\b[^>]*>(.*?)</script>", lower, re.S):
-            self.assertEqual(tag.strip(), "", f"inline skript: {tag!r}")
-        for tag in re.findall(r"<script\b[^>]*>", lower):
-            self.assertIn("src=", tag, f"skript bez src: {tag}")
-        for handler in re.findall(r"\son[a-z]+\s*=", lower):
-            self.fail(f"inline obsluha udalosti: {handler!r}")
+        check_no_executable_inline_code(self, text)
+
+    def test_pin_fires_on_inline_script(self):
+        """Pin musi umet spadnout - jinak nic nemeri."""
+        bad = '<!doctype html><html><body><script>alert(1)</script></body></html>'
+        with web_fixture.fake_web(index=bad) as (_root, _static, index):
+            with mock.patch.object(server, "WEB_DIR", index.parent):
+                text = server.load_index()
+        with self.assertRaises(AssertionError):
+            check_no_executable_inline_code(self, text)
+
+    @unittest.skipUnless((server.WEB_DIR / "index.html").exists(),
+                         "chybi build (npm run build ve frontend/)")
+    def test_real_build_index_has_no_executable_inline_code(self):
+        check_no_executable_inline_code(self, server.load_index())
 
     def test_index_references_hashed_static_assets(self):
         """Kdyz uz je CSS a JS mimo HTML, musi na ne HTML odkazovat."""
@@ -236,18 +273,19 @@ class StatsTest(unittest.TestCase):
         self.assertEqual(monitor.calls, 1)
 
     def test_index_is_served_at_root(self):
-        """I tahle trasa cte fixture, ne repo web/ - jinak by testy drzely build.
+        """Trasa / posle presne to, co je na disku - ne jen nejake HTML.
 
-        Doctype se porovnava bez ohledu na velikost pismen: Vite ho vydava
-        malymi (`<!doctype html>`) a HTML ho bere case-insensitive, takze pin
-        na presny tvar řetězce by pinoval neco, co spec nepovinuje.
+        I tahle trasa cte fixture, ne repo web/ - jinak by testy drzely build.
+        Pin na doctype sam by ale prosla konstanta `<!doctype html><html>`:
+        trasa, ktera `load_index()` nikdy nezavola, musi spadnout.
         """
         with web_fixture.fake_web() as (_root, _static, index):
             with mock.patch.object(server, "WEB_DIR", index.parent):
+                expected = server.load_index()
                 response = self.get("/")
-                self.assertEqual(response.status, 200)
-                self.assertIn("text/html", response.getheader("Content-Type"))
-                self.assertIn("<!doctype html>", response.read().decode().lower())
+        self.assertEqual(response.status, 200)
+        self.assertIn("text/html", response.getheader("Content-Type"))
+        self.assertEqual(response.read().decode(), expected)
 
     def test_unknown_path_is_404_with_content_length(self):
         response = self.get("/neexistuje")
@@ -308,12 +346,13 @@ class StatsTest(unittest.TestCase):
 
         Podadresar `assets/` je tu proto, ze ho Vite build pouziva: trasa
         musi umet i vnorenou cestu, ne jen soubor v koreni static/.
+
+        Server ze `setUp` staci: `load_static` cte modulovou `STATIC_DIR` az
+        v dobe volani, takze patch plati i pro uz bezici server. Kdyby ji
+        nekdo presunul na instanci, test spadne hlasite - a to je dobre.
         """
         with web_fixture.fake_web() as (_root, static, _index):
             with mock.patch.object(server, "STATIC_DIR", static):
-                srv, port = start_server()
-                self.addCleanup(srv.shutdown)
-                self.addCleanup(srv.server_close)
                 expected = {
                     "/static/style.css": (
                         "style.css", "text/css; charset=utf-8"),
@@ -323,7 +362,7 @@ class StatsTest(unittest.TestCase):
                 }
                 for path, (name, ctype) in expected.items():
                     with self.subTest(path=path):
-                        response = self.get(path, port=port)
+                        response = self.get(path)
                         self.assertEqual(response.status, 200)
                         self.assertEqual(response.getheader("Content-Type"), ctype)
                         # Bajt po bajtu proti souboru na disku: telo jine
@@ -331,6 +370,23 @@ class StatsTest(unittest.TestCase):
                         # proslo.
                         self.assertEqual(response.read(),
                                          (static / name).read_bytes())
+
+    def test_every_static_reference_in_index_is_served(self):
+        """Vse, na co index odkazuje pod /static/, musi jit stahnout.
+
+        Tohle pinuje allow-list pripon a vnorenou cestu na skutecnych odkazech
+        indexu: kdyby build odkazoval na .css, ktere trasa nevyda, stranka se
+        nacte bez vzhledu a jednotkove testy by mlcely.
+        """
+        with web_fixture.fake_web() as (_root, static, index):
+            with mock.patch.object(server, "WEB_DIR", index.parent), \
+                 mock.patch.object(server, "STATIC_DIR", static):
+                html = server.load_index()
+                refs = re.findall(r'(?:src|href)="(/static/[^"]+)"', html)
+                self.assertTrue(refs, "index na nic pod /static/ neodkazuje")
+                for ref in refs:
+                    with self.subTest(ref=ref):
+                        self.assertEqual(self.get(ref).status, 200, ref)
 
     def test_404_has_no_body_bytes(self):
         """`Content-Length: 0` musi byt pravda, ne jen hlavicka.
