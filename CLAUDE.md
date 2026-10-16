@@ -23,12 +23,14 @@ Fáze 1 (démon) rozpracovaná. Návrh je v
 `docs/superpowers/plans/2026-10-15-faze-1-demon.md`, průběh v `.tasks.json` vedle
 plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
 Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
-(`docker`), Task 7 (`monitor` + kontrakt snapshotu). Zbývá Task 7b (doplnění
-pokrytí kolektorů), pak `feed`, `server`, `__main__` a ověření.
+(`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
+kolektorů). Zbývá `feed`, `server`, `__main__` a ověření.
 
-Task 7b má v plánu **hotovou předlohu testů** — psanou a ověřenou při
-zakládání tasku (86 testů zelených, dvanáct mutací zabito). Implementátor ji
-opíše; recenzenti ji ale mají brát jako nový kód, ne jako spec.
+Task 7b měl v plánu **hotovou předlohu testů**, psanou a ověřenou při zakládání
+tasku (86 testů zelených, třináct mutací zabito). Implementátor ji opsal **byte po
+bytu** — a recenzenti v ní přesto naměřili tři vadné piny (inverzní `assertIs`,
+vakuózní assert, test visící při mutantovi). Předloha je tedy **výchozí bod, ne
+spec**: i opsaný kód se recenzuje jako nový.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -86,6 +88,19 @@ Postup u jednoho tasku:
   jméno v argumentu, tedy mimo obal, a překlep je hlasitý (31 chyb). Totéž
   platí pro tabulku náhradních tvarů klíčovanou jmény — nic ji s klíči neváže,
   takže `loadavg` s `{}` projde testy a rozbije render.
+- **`assertIs` nepinuje nezměněnost.** Test na identitu objektu vypadá, že brání
+  přepsání sdíleného stavu, ale propustí právě to: `Monitor` může `groups`
+  otraviť na místě a `assertIs` projde, protože je to pořád týž objekt — a naopak
+  shodí neškodný `deepcopy`. Kde je nebezpečím modifikace, pinuje se **obsah**
+  (kopie před voláním + `assertEqual`), ne identita. Naměřeno v Tasku 7b: obě
+  asserce zabíjejí jinou mutantu, každá sama je poloviční.
+- **Test, jehož smyčku ukončuje mock, se při mutantovi zacyklí místo aby spadl.**
+  Když `_loop` končí jen výjimkou z podstrčeného `time.sleep`, mutant bez spánku
+  sadu roztočí navěky (`timeout` místo `FAILED`) — a visící test vypadá jako
+  běžící. Terminátor patří na volání uvnitř těla a musí to být `BaseException`
+  (`SystemExit`), protože `except Exception` ho nespolkne; spánek se pinuje
+  zvlášť. Záložní brzda z mockovaného spánku funguje jen proto, že `sleep` leží
+  vně `try` — přesun dovnitř z ní udělá věčné točení.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
