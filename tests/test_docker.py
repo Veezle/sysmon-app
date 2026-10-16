@@ -96,6 +96,8 @@ class RefreshTest(unittest.TestCase):
         )
         container = collector.refresh()["groups"]["Ostatní"][0]
         self.assertEqual(container["cpu"], "7.5%")
+        self.assertEqual(container["memory"], "10MiB / 1GiB")
+        self.assertEqual(container["memory_percent"], "0.98%")
 
     def test_stats_are_paired_by_short_id_when_the_name_differs(self):
         """Docker umi statistiky klicovat i zkracenym ID - fallback to resi.
@@ -120,6 +122,15 @@ class RefreshTest(unittest.TestCase):
         collector = self.collector(run_error=subprocess.TimeoutExpired(cmd="docker ps", timeout=3))
         self.assertIn("groups", collector.refresh())
 
+        broken_json = self.collector(ps_stdout="{tohle neni json")
+        self.assertIn("groups", broken_json.refresh())
+
+        unavailable = self.collector(
+            run_error=subprocess.CalledProcessError(returncode=1, cmd="docker ps", stderr="x"),
+        )
+        self.assertIn("groups", unavailable.refresh())
+        self.assertEqual(unavailable.refresh()["error"], "x")
+
     def test_loop_survives_a_raising_refresh(self):
         """Vyjimka z refresh() nesmi zabit obnovovaci vlakno.
 
@@ -127,19 +138,28 @@ class RefreshTest(unittest.TestCase):
         presne ten rezim, pred kterym varuje CLAUDE.md u net.py.
         """
         collector = self.collector()
-        refresh = mock.patch.object(collector, "refresh", side_effect=RuntimeError("vypadek"))
+        refresh = mock.patch.object(
+            collector, "refresh", side_effect=[RuntimeError("vypadek"), SystemExit]
+        )
         refresh.start()
         self.addCleanup(refresh.stop)
         sleep = mock.patch.object(docker.time, "sleep", side_effect=[None, StopIteration])
-        sleep.start()
+        sleep_mock = sleep.start()
         self.addCleanup(sleep.stop)
 
-        with self.assertRaises(StopIteration):
+        with self.assertRaises(SystemExit):
             collector._loop()
 
-        # Sest vykonanych vzorku neni potreba - staci, ze smycka prvni vyjimku
-        # prezila a ulozila chybovy stav misto aby spadla.
+        # `available` sam nestaci: `_data` zacina na False, takze by assert
+        # prosel i proti smycce, ktera po chybe neulozi nic. Chybovy stav se
+        # pozna az podle zpravy - a `groups` musi zustat i v teto vetvi.
         self.assertFalse(collector._data["available"])
+        self.assertEqual(collector._data["error"], "Chyba Docker monitoru: vypadek")
+        self.assertIn("groups", collector._data)
+        # A mezi dvema obnovami se spi. Bez toho by delnik po prvni chybe
+        # tocil CPU naprazdno; test by to jinak nepoznal, protoze smycku
+        # ukoncuje az vyjimka z refresh().
+        sleep_mock.assert_called_once()
 
 
 if __name__ == "__main__":

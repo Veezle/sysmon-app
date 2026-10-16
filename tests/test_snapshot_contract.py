@@ -5,6 +5,7 @@ proste vykresli v degradovanem tvaru, coz je presne to, co ma kontrakt
 dovolit. Predstira se jen vyjimka, aby slo overit, ze ji Monitor spolkne.
 """
 
+import copy
 import itertools
 import unittest
 from types import SimpleNamespace
@@ -235,10 +236,19 @@ class SnapshotContractTest(unittest.TestCase):
         `groups` je tyz objekt jako v jeho internim stavu. Kdyby ho Monitor
         prepsal (pridal skupine pole, prepsal pocet), otravi to stav vsem
         dalsim odberatelum - a tise.
+
+        Pinuji se obe veci: predani dal (`assertIs` rika, ze Monitor nic
+        nekopiruje) i to, ze obsah zustal nezmeneny.
         """
         monitor = Monitor(Settings())
+        before = copy.deepcopy(monitor.docker.snapshot()["groups"])
         stored = monitor.docker.snapshot()["groups"]
+
         self.assertIs(monitor.snapshot()["containers"]["groups"], stored)
+        # `assertIs` sam projde i tehdy, kdyby Monitor `groups` prepsal na
+        # miste - otrava by prosla, protoze je to porad ten sam objekt.
+        # Proto se porovnava i obsah zjisteny pred snapshotem.
+        self.assertEqual(monitor.docker.snapshot()["groups"], before)
 
     def test_processes_reach_the_snapshot_untruncated(self):
         """Monitor preda seznam procesu dal - ne fallback a ne zkraceny.

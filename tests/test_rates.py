@@ -60,7 +60,8 @@ class NetCollectorTest(unittest.TestCase):
 
         Kdyby byl stav modulovy (jak to bylo v predchozim produktu), druhy
         kolektor by pocital z baseline toho prvniho a vratil by nenulovou
-        rychlost. Tohle je jediny test, ktery to pozna.
+        rychlost. Modulovy stav zabije i kontraktni test prime(); tenhle to
+        ale pozna primo z read().
         """
         samples = [
             SimpleNamespace(bytes_sent=1000, bytes_recv=2000),
