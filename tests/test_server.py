@@ -309,5 +309,17 @@ class StatsTest(unittest.TestCase):
                 self.assertEqual(body, b"")
 
 
+class BusyPortTest(unittest.TestCase):
+    def test_busy_port_raises_oserror(self):
+        """Druhy bind na temz portu musi selhat - na tom stoji hlaska v __main__."""
+        first, port = start_server()
+        self.addCleanup(first.shutdown)
+        self.addCleanup(first.server_close)
+        monitor = FakeMonitor()
+        feed = SnapshotFeed(monitor)
+        with self.assertRaises(OSError):
+            server.serve(monitor, feed, "127.0.0.1", port)
+
+
 if __name__ == "__main__":
     unittest.main()
