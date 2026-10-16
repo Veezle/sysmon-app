@@ -91,13 +91,36 @@ class SnapshotContractTest(unittest.TestCase):
         znamena. Pres verejne rozhrani se protoceni poznat neda: prvni i druhe
         cteni vraci float, jen to prvni je vzdy nulove, a nula je na klidnem
         stroji i spravna odpoved.
+
+        Citace disku se podstrkuji: `disk.py` posune baseline jen v uspesne
+        vetvi, takze na stroji bez citelnych I/O statistik by tenhle test
+        spadel - a to je stav, se kterym `disk.py` pocita.
         """
         monitor = Monitor(Settings())
         self.assertIsNone(monitor.net._prev_t)
         self.assertIsNone(monitor.disk._prev_t)
-        monitor.prime()
+        io = SimpleNamespace(read_bytes=100, write_bytes=200)
+        with mock.patch("sysmon_app.collectors.disk.psutil.disk_io_counters",
+                        return_value=io), \
+             mock.patch("sysmon_app.collectors.disk.time.monotonic",
+                        return_value=100.0):
+            monitor.prime()
         self.assertIsNotNone(monitor.net._prev_t)
         self.assertIsNotNone(monitor.disk._prev_t)
+
+    def test_prime_cycles_cpu_and_top_processes(self):
+        """AC mluvi i o CPU a komentar u prime() i o procesech - oboji musi nastat.
+
+        Vyjmkovy mechanismus `PRIMED` na to nestaci: `psutil.cpu_percent`
+        podstrcit nejde, protoze v `snapshot()` obalene neni a podstrceni by
+        rozbilo i jeho.
+        """
+        monitor = Monitor(Settings())
+        with mock.patch("sysmon_app.monitor.psutil.cpu_percent") as cpu, \
+             mock.patch("sysmon_app.monitor.get_top_processes") as procs:
+            monitor.prime()
+        cpu.assert_called_once_with(interval=None)
+        procs.assert_called_once_with(TOP_PROCESSES_N)
 
     def test_prime_makes_the_first_snapshot_nonzero(self):
         """Tentyz nalez z druhe strany: prvni /stats nesmi byt sama nula."""
