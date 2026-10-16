@@ -1,0 +1,103 @@
+{
+  "planPath": "docs/superpowers/plans/2026-10-16-faze-2-frontend.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Sada se odpoutá od buildu",
+      "status": "pending",
+      "description": "**Goal:** Testy indexu a assetů čtou fixture adresář místo repo `web/`, takže sada projde i v čerstvém klonu bez buildu; piny na index se přeformulují pro Vite build.\n\n**Files:**\n- Create `tests/web_fixture.py`\n- Modify `tests/test_server.py`\n\n**Acceptance Criteria:**\n- [ ] sada projde i s přesunutým `sysmon_app/web/`\n- [ ] index/static testy čtou fixture přes `mock.patch.object`\n- [ ] pin na index zakazuje spustitelný inline kód (tělo `<script>`, `on…=`), case-insensitive\n- [ ] `/static/assets/index-<hash>.js` jde stáhnout po drátě z fixture\n\n**Verify:** `python3 -m unittest discover -s tests -t .` → OK (i s `mv sysmon_app/web /tmp/web-off`)\n\n```json:metadata\n{\"files\": [\"tests/web_fixture.py\", \"tests/test_server.py\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"sada projde bez web/\", \"fixture místo buildu\", \"pin na spustitelný inline kód\", \"asset v podadresáři po drátě\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Skelet frontendu a build do sysmon_app/web/",
+      "status": "pending",
+      "description": "**Goal:** `frontend/` s Vite + React + TS, který se buildí do `sysmon_app/web/`; dnešní kopie frontendu se z repa smaže.\n\n**Files:**\n- Create `frontend/package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `src/main.tsx`, `src/App.tsx`, `public/static/icon.svg`, `package-lock.json`\n- Modify `.gitignore`\n- Delete `sysmon_app/web/index.html`, `sysmon_app/web/static/{app.js,style.css,icon.svg}`\n\n**Acceptance Criteria:**\n- [ ] `npm ci && npm run build` vytvoří `sysmon_app/web/index.html` a `static/assets/index-<hash>.js`\n- [ ] démon build servíruje: `/` → 200 text/html, oba assety (.js i .css) → 200\n- [ ] `git status` je po buildu čistý\n- [ ] stará kopie frontendu je z repa smazaná\n- [ ] `npm run dev` proxyuje `/stats` na 8430 (ověřeno po drátě)\n\n**Verify:** build + curl po drátě (Step 6) a dev proxy (Step 8)\n\n```json:metadata\n{\"files\": [\"frontend/\", \".gitignore\", \"sysmon_app/web/\"], \"verifyCommand\": \"cd frontend && npm ci && npm run build\", \"acceptanceCriteria\": [\"build do sysmon_app/web/\", \"assety pod /static/assets/\", \"git status čistý\", \"dev proxy na 8430\"]}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Démon umí servírovat build (cache hlavičky, chybějící build)",
+      "status": "pending",
+      "description": "**Goal:** Hashované assety `immutable`, `index.html` `no-store`; chybějící build se hlásí česky při startu i za běhu.\n\n**Files:**\n- Modify `sysmon_app/server.py`\n- Modify `sysmon_app/__main__.py`\n- Test `tests/test_server.py`, `tests/test_main.py`\n\n**Acceptance Criteria:**\n- [ ] hashovaný asset má `Cache-Control: public, max-age=31536000, immutable`\n- [ ] `/` a `icon.svg` mají `no-store`\n- [ ] bez buildu: česká věta s cestou a příkazem, rc=2, bez tracebacku\n- [ ] když build zmizí za běhu: `GET /` → 503 text/plain s českou větou\n\n**Verify:** `python3 -m unittest tests.test_server tests.test_main -v` → PASS; živý běh s přesunutým buildem\n\n```json:metadata\n{\"files\": [\"sysmon_app/server.py\", \"sysmon_app/__main__.py\", \"tests/test_server.py\", \"tests/test_main.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_server tests.test_main -v\", \"acceptanceCriteria\": [\"immutable pro hashované assety\", \"no-store pro index\", \"chybějící build hlásí větou (rc=2)\", \"503 za běhu\"]}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Typy kontraktu a fixture, která nemůže zestárnout",
+      "status": "pending",
+      "description": "**Goal:** `snapshot.ts` popisuje kontrakt a `snapshot.contract.ts` ho pinuje proti fixture generované Pythonem.\n\n**Files:**\n- Create `tests/fixtures/snapshot.json`, `frontend/src/types/snapshot.ts`, `frontend/src/types/snapshot.contract.ts`\n- Modify `tests/test_snapshot_contract.py`\n\n**Acceptance Criteria:**\n- [ ] fixture je stabilní (žádné časy, procenta ani PIDy)\n- [ ] test porovnává fixture na disku s čerstvě vygenerovanou (UPDATE_FIXTURE=1 přegeneruje)\n- [ ] `npm run typecheck` projde\n- [ ] přidání povinného klíče do typu bez klíče ve fixture typecheck shodí (ověřeno)\n- [ ] `snapshot.contract.ts` není importovaný z aplikace\n\n**Verify:** `cd frontend && npm run typecheck` (bez chyb) + `python3 -m unittest tests.test_snapshot_contract -v` → PASS\n\n```json:metadata\n{\"files\": [\"tests/fixtures/snapshot.json\", \"tests/test_snapshot_contract.py\", \"frontend/src/types/snapshot.ts\", \"frontend/src/types/snapshot.contract.ts\"], \"verifyCommand\": \"cd frontend && npm run typecheck\", \"acceptanceCriteria\": [\"fixture stabilní a hlídaná\", \"typecheck pinuje tvary\", \"fixture se nezbundluje\"]}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Datová vrstva /stats + SSE s pojistkou",
+      "status": "pending",
+      "description": "**Goal:** Hook `useSnapshot`: první vykreslení z `/stats`, pak `EventSource('/events')`, a při tichu přepnutí na polling se stavem `live: false`.\n\n**Files:**\n- Create `frontend/src/data/useSnapshot.ts`, `frontend/src/lib/format.ts`\n- Modify `frontend/src/App.tsx`\n\n**Acceptance Criteria:**\n- [ ] první vykreslení z `/stats`\n- [ ] rámce z `/events` aktualizují snapshot\n- [ ] po `STALE_MS` ticha se polluje `/stats` každých `POLL_MS` a stav je `live: false`\n- [ ] po odmountování nezůstane EventSource ani timer\n- [ ] konstanty jsou pojmenované a okomentované jako duplikát `TICK_SEC`\n\n**Verify:** dva běhy headless Chroma s různým `--virtual-time-budget` dají různé hodnoty CPU\n\n```json:metadata\n{\"files\": [\"frontend/src/data/useSnapshot.ts\", \"frontend/src/lib/format.ts\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"první vykreslení z /stats\", \"SSE aktualizuje\", \"fallback na polling\", \"úklid při odmountování\"]}\n```",
+      "blockedBy": [
+        3
+      ]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Vzhled — CSS, hlavička a karty CPU, GPU, RAM",
+      "status": "pending",
+      "description": "**Goal:** Port vzhledu: CSS ze `sysmonu` bez stylů mrtvých tlačítek, hlavička a tři karty.\n\n**Files:**\n- Create `frontend/src/styles/style.css`, `components/{Header,CpuCard,Cores,GpuCard,MemCard,Bar}.tsx`\n- Modify `frontend/src/App.tsx`, `frontend/src/main.tsx`\n\n**Acceptance Criteria:**\n- [ ] CSS 1:1 až na odstraněné styly mrtvých tlačítek a zúžené mřížky (`diff` ukáže jen ty)\n- [ ] karty memoované, seznamy se stabilními `key`, mění se jen text/šířka/barva\n- [ ] žádná animace width/height/box-shadow na prvcích měněných každý tik\n- [ ] karty odpovídají `sysmonu` na 8420 (screenshot)\n\n**Verify:** build + oba démoni + screenshoty 8420/8430 prohlédnuté\n\n```json:metadata\n{\"files\": [\"frontend/src/styles/style.css\", \"frontend/src/components/Header.tsx\", \"frontend/src/components/CpuCard.tsx\", \"frontend/src/components/Cores.tsx\", \"frontend/src/components/GpuCard.tsx\", \"frontend/src/components/MemCard.tsx\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"CSS 1:1 bez stylů mrtvých tlačítek\", \"memo a stabilní key\", \"karty odpovídají sysmonu\"]}\n```",
+      "blockedBy": [
+        4
+      ]
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Baterie (canvas), síť a disk",
+      "status": "pending",
+      "description": "**Goal:** Tři karty, z toho graf baterie imperativně na canvasu.\n\n**Files:**\n- Create `frontend/src/components/{BatteryCard,BatteryChart,NetworkCard,DiskCard}.tsx`\n- Modify `frontend/src/App.tsx`\n\n**Acceptance Criteria:**\n- [ ] graf se kreslí imperativně (ref + useEffect), ne z React elementů\n- [ ] překresluje se jen při změně historie\n- [ ] `battery.available === false` vykreslí dnešní text\n- [ ] karty odpovídají `sysmonu` (screenshot), `--dump-dom` obsahuje canvas\n\n**Verify:** build + screenshoty obou portů\n\n```json:metadata\n{\"files\": [\"frontend/src/components/BatteryCard.tsx\", \"frontend/src/components/BatteryChart.tsx\", \"frontend/src/components/NetworkCard.tsx\", \"frontend/src/components/DiskCard.tsx\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"canvas mimo React render\", \"překreslení jen při změně historie\", \"degradovaná baterie\"]}\n```",
+      "blockedBy": [
+        5
+      ]
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: Služby, procesy, Docker — a konec mrtvých tlačítek",
+      "status": "pending",
+      "description": "**Goal:** Zbylé karty, oprava prázdné konfigurace portů a úplné odstranění tokenu a akcí.\n\n**Files:**\n- Create `frontend/src/components/{ServicesCard,ProcessesCard,DockerCard}.tsx`\n- Modify `frontend/src/App.tsx`\n\n**Acceptance Criteria:**\n- [ ] prázdné `services` se čte jako „Nesleduji žádné porty“ (i v `#svc-count`)\n- [ ] v `frontend/src` není zmínka o tokenu ani `/action/`\n- [ ] nevykreslují se žádná tlačítka ✕/↻\n- [ ] seznamy mají stabilní `key` (port, PID, skupina+kontejner)\n- [ ] Docker seskupuje podle projektu s „Ostatní“ poslední\n\n**Verify:** `grep -rniE \"token|/action/\" frontend/src/` → nic; `--dump-dom` s prázdným `[watch_ports]` hlásí „Nesleduji žádné porty“\n\n```json:metadata\n{\"files\": [\"frontend/src/components/ServicesCard.tsx\", \"frontend/src/components/ProcessesCard.tsx\", \"frontend/src/components/DockerCard.tsx\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"prázdné watch_ports se čte správně\", \"žádný token ani akce\", \"stabilní key v seznamech\"]}\n```",
+      "blockedBy": [
+        6
+      ]
+    },
+    {
+      "id": 8,
+      "subject": "Task 9: Piny, které měří produkt, ne komponenty",
+      "status": "pending",
+      "description": "**Goal:** Tři piny: build bez cizích originů, seznamy se nepřebudovávají (mutace + identita uzlů), a stránka se aktualizuje i bez SSE.\n\n**Files:**\n- Create `tests/test_frontend_build.py`\n\n**Acceptance Criteria:**\n- [ ] privacy pin: build neobsahuje `href=\"http`, `src=\"http`, `url(http`, `@import`\n- [ ] rebuild pin: po ~80 ticích s konstantním snapshotem nula childList mutací a tytéž uzly seznamů\n- [ ] fallback pin: s rozbitým `/events` a měnícím se `/stats` se stránka aktualizuje\n- [ ] bez buildu nebo Chroma se piny přeskočí (a v hlášení je vidět, jestli běžely)\n- [ ] proti starému frontendu rebuild pin spadne (důkaz, že měří)\n\n**Verify:** `python3 -m unittest tests.test_frontend_build -v` → 3 testy ok (ne skipped)\n\n```json:metadata\n{\"files\": [\"tests/test_frontend_build.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_frontend_build -v\", \"acceptanceCriteria\": [\"build bez cizích originů\", \"nula mutací v seznamech\", \"tytéž uzly seznamů\", \"aktualizace i bez SSE\"]}\n```",
+      "blockedBy": [
+        7
+      ]
+    },
+    {
+      "id": 9,
+      "subject": "Task 10: README po fázi 2",
+      "status": "pending",
+      "description": "**Goal:** README říká pravdu: build je krok před spuštěním a frontend už není kopie ze `sysmonu`.\n\n**Files:**\n- Modify `README.md`\n\n**Acceptance Criteria:**\n- [ ] sekce o spuštění uvádí `npm ci && npm run build` a co se stane bez něj\n- [ ] sekce o dočasném frontendu je přepsaná (build, ne kopie)\n- [ ] věty o mrtvých tlačítkách a titulku „Sysmon“ jsou pryč\n- [ ] zmínka o `/events` a pojistce\n- [ ] každý příkaz z README projde, když se spustí doslova\n\n**Verify:** příkazy z README spuštěné doslova; `grep -n \"kopie\\|mrtvá\\|token\" README.md` → jen co platí\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"build jako krok před spuštěním\", \"žádná zmínka o kopii\", \"každé tvrzení ověřené\"]}\n```",
+      "blockedBy": [
+        7
+      ]
+    },
+    {
+      "id": 10,
+      "subject": "Task 11: End-to-end ověření fáze 2",
+      "status": "pending",
+      "description": "**Goal:** Ověřit karty proti `sysmonu`, živý telefon a zapsat naměřená čísla do plánu.\n\n**Files:**\n- Modify `docs/superpowers/plans/2026-10-16-faze-2-frontend.md` (uzavření)\n\n**Acceptance Criteria:**\n- [ ] sada zelená s buildem (piny z Tasku 9 běžely, ne skipped)\n- [ ] sada zelená i bez buildu\n- [ ] karty na 8430 odpovídají 8420 (screenshoty prohlédnuté)\n- [ ] `/stats` i `/events` vydávají tytéž klíče jako 8420\n- [ ] stránka se na telefonu aktualizuje bez obnovení\n- [ ] naměřená čísla jsou v uzavření v plánu (commitem)\n\n**Verify:** příkazy Step 1–4 + uzavření v plánu\n\n```json:metadata\n{\"files\": [\"docs/superpowers/plans/2026-10-16-faze-2-frontend.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"sada zelená s buildem i bez\", \"karty odpovídají sysmonu\", \"kontrakt shodný\", \"uzavření s čísly\"]}\n```",
+      "blockedBy": [
+        8,
+        9
+      ]
+    }
+  ],
+  "lastUpdated": "2026-10-16T23:21:58+02:00"
+}
