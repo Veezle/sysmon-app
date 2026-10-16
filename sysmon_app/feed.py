@@ -1,11 +1,11 @@
 """SnapshotFeed - jeden sberny cyklus pro vsechny odberatele.
 
 Proc takhle: driv cetl kolektory kazdy HTTP pozadavek z vlastniho vlakna,
-takze se rate-based kolektory (sit, disk) navzajem rozbilyly - v sysmonu
-zapsana a prijata vada. Tady tiká jediny cyklus a odberatele se jen vezou.
+takze se rate-based kolektory (sit, disk) navzajem rozbily - v sysmonu
+zapsana a prijata vada. Tady tika jediny cyklus a odberatele se jen vezou.
 
 Odberatel se prihlasi tim, ze si zapamatuje `snapshot_seq()` a pak ceka
-`wait_for(seq, timeout)`. Zadny fronta k odberateli, zadne kopirovani
+`wait_for(seq, timeout)`. Zadna fronta k odberateli, zadne kopirovani
 snapshotu pro kazdeho - vsichni dostanou ten sam dict (jen se v nem nemeni).
 """
 
