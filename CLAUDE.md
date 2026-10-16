@@ -18,19 +18,19 @@ hlášky s diakritikou, komentáře bez (zděděný styl).
 
 ## Stav
 
-Fáze 1 (démon) rozpracovaná. Návrh je v
+**Fáze 1 (démon) hotová** — všech 12 tasků. Návrh je v
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`, plán po úlohách v
 `docs/superpowers/plans/2026-10-15-faze-1-demon.md`, průběh v `.tasks.json` vedle
-plánu. Hotové: Task 1 (skelet + `config.py`), Task 2 (`system`, `processes`),
-Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`, `battery`), Task 6
-(`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b (doplnění pokrytí
-kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N odběratelů), Task 9
-(`server` — SPA a `/stats`), Task 10 (SSE proud na `/events`), Task 11
-(`__main__` — spustitelný démon). **Zbývá jen Task 12** (README a end-to-end
-ověření fáze 1); jeho nálezy a meze předané z Tasku 11 (useknuté SSE proudy při
-ukončení, startovní URL v logu) jsou zapsané v plánu u jeho sekce.
+plánu, naměřená čísla k ověření fáze 1 v uzavření Tasku 12. Task 1 (skelet +
+`config.py`), Task 2 (`system`, `processes`), Task 3 (`net`, `disk`), Task 4
+(`ports`), Task 5 (`gpu`, `battery`), Task 6 (`docker`), Task 7 (`monitor` +
+kontrakt snapshotu), Task 7b (doplnění pokrytí kolektorů), Task 8 (`feed` — jeden
+sběrný cyklus pro N odběratelů), Task 9 (`server` — SPA a `/stats`), Task 10 (SSE
+proud na `/events`), Task 11 (`__main__` — spustitelný démon), Task 12 (`README`
+a end-to-end ověření). Sada má **141 testů**; `README.md` je poprvé v repu.
 
-Task 7b, Task 8, Task 9, Task 10 i Task 11 měly v plánu **hotovou předlohu**,
+Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
+předlohu**,
 a všechny se ukázaly být **výchozím bodem, ne spec**: u 7b v ní recenzenti
 naměřili tři vadné piny, u Tasku 8 předloha nepinovala vlastní acceptance
 kritéria (dvanáct mutovaných vlastností přežilo) a její časové piny tiše držely,
@@ -40,7 +40,9 @@ a trasu `/static/` netestovalo po drátě vůbec, u Tasku 10 nechala předloha v
 smyčce chybějící výstup po `stop()` (past, kterou přitom sama popsala jako
 závaznou) a její tři testy nepokrývaly dvě ze čtyř kritérií, u Tasku 11 pinoval
 předepsaný `Verify` jen předpoklad jednoho kritéria ze čtyř (a `--port` mimo
-rozsah končil tracebackem). Opsaný kód se recenzuje jako nový.
+rozsah končil tracebackem), a u Tasku 12 byla **rozbitá ukázka `config.toml`**,
+kterou měl README učit (a ověření fáze 1 zůstalo jen v hlášení, ne v repu).
+Opsaný kód se recenzuje jako nový.
 
 Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
 v návrhu.
@@ -192,6 +194,21 @@ Postup u jednoho tasku:
   prohazoval pořadí). (b) Substring aserce propustí víc, než si myslíš:
   `assertIn("konec", stdout)` přežije i `konecX`; kde jde o text hlášky, pinuj
   přesnou hodnotu.
+- **Ukázka z dokumentace se ověřuje extrakcí ze souboru, ne přepisem.** Naivní
+  „ber odsazené řádky, dokud to jde" se v Tasku 12 zastavilo na **prázdném řádku
+  uvnitř bloku** a vrátilo podvýřez `config.toml` bez `[watch_ports]` — tedy bez
+  přesně toho místa, kde chyba byla, a takový výřez projde. Kdo opisuje správnou
+  verzi ručně, stejně tak nedokáže nic: dokument a realita se rozejdou znovu.
+- **Tvrzení o chování frontendu se ověřuje i v cestě, kterou dokumentace sama
+  nabízí.** V Tasku 12 byla výchozí cesta (bez tokenu) pravdivá a ležela ta
+  druhá: README citoval hlášku odkazující na `?token=…`, takže čtenář, který ji
+  poslechne, pošle POST (`captureToken()` token z URL vezme) a dostane syrovou
+  `SyntaxError` místo slibovaného „nic se nestane". Věty typu „to se nikdy
+  neodešle" potřebují pin i na okrajový vstup, který sám dokument zmiňuje.
+- **Když task slibuje „ověřit", musí ověření skončit v repu.** Task 12 měl za cíl
+  ověřit, že démon dává stejná data jako `sysmon`; kdyby ta čísla zůstala jen
+  v hlášení subagenta, nedá se z repa zjistit, co a kdy se měřilo. Naměřené
+  hodnoty patří do uzavření tasku v plánu.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
