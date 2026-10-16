@@ -55,6 +55,32 @@ class NetCollectorTest(unittest.TestCase):
         self.assertGreater(out["up"], 0)
         self.assertEqual(out["down"], 0.0)
 
+    def test_two_collectors_have_separate_state(self):
+        """Stav je v instanci - druhy kolektor nesmi videt baseline prvniho.
+
+        Kdyby byl stav modulovy (jak to bylo v predchozim produktu), druhy
+        kolektor by pocital z baseline toho prvniho a vratil by nenulovou
+        rychlost. Tohle je jediny test, ktery to pozna.
+        """
+        samples = [
+            SimpleNamespace(bytes_sent=1000, bytes_recv=2000),
+            SimpleNamespace(bytes_sent=5000, bytes_recv=9000),
+        ]
+        io = mock.patch.object(net.psutil, "net_io_counters", side_effect=samples)
+        io.start()
+        self.addCleanup(io.stop)
+        clock = mock.patch.object(net.time, "monotonic", side_effect=[100.0, 102.0])
+        clock.start()
+        self.addCleanup(clock.stop)
+
+        first = net.NetCollector()
+        second = net.NetCollector()
+        first.read()
+        self.assertEqual(
+            second.read(),
+            {"up": 0.0, "down": 0.0, "total_up": 5000, "total_recv": 9000},
+        )
+
 
 class DiskCollectorTest(unittest.TestCase):
     def test_first_read_is_zero_baseline(self):
@@ -78,3 +104,50 @@ class DiskCollectorTest(unittest.TestCase):
         self.assertAlmostEqual(second["read_rate"], 100.0)   # (300-100)/2
         self.assertAlmostEqual(second["write_rate"], 50.0)   # (300-200)/2
         self.assertEqual(second["percent"], 42.0)
+
+    def test_unreadable_usage_is_the_only_unavailable_path(self):
+        """`available: False` dava jen selhani disk_usage, ne citacu.
+
+        Spletlo by se to snadno: kdyz selze `disk_io_counters`, karta zustava
+        dostupna a jen rychlosti jsou nulove.
+        """
+        usage = mock.patch.object(disk.psutil, "disk_usage", side_effect=OSError("x"))
+        usage.start()
+        self.addCleanup(usage.stop)
+
+        self.assertEqual(disk.DiskCollector().read(), {"available": False})
+
+    def test_unreadable_io_counters_zeroes_rates_without_moving_baseline(self):
+        """Po vypadku citacu se baseline neposune - dalsi cteni prumeruje pres celou mezeru.
+
+        Vypada to zamyslene a je to zdokumentovane v CLAUDE.md jako vlastnost,
+        ne bug. Test to pinuje, aby se to nezmenilo mimochodem: druha rychlost
+        se pocita z casu 0.0 -> 2.0 (celkem), ne z 1.0 -> 2.0.
+        """
+        usage = mock.patch.object(disk.psutil, "disk_usage",
+                                  return_value=SimpleNamespace(percent=42.0, used=10, total=100))
+        usage.start()
+        self.addCleanup(usage.stop)
+        io = mock.patch.object(disk.psutil, "disk_io_counters",
+                               side_effect=[SimpleNamespace(read_bytes=0, write_bytes=0),
+                                            OSError("vypadek"),
+                                            SimpleNamespace(read_bytes=300, write_bytes=400)])
+        io.start()
+        self.addCleanup(io.stop)
+        clock = mock.patch.object(disk.time, "monotonic", side_effect=[0.0, 1.0, 2.0])
+        clock.start()
+        self.addCleanup(clock.stop)
+
+        c = disk.DiskCollector()
+        c.read()
+        during_outage = c.read()
+        after_outage = c.read()
+
+        self.assertEqual(
+            (during_outage["available"], during_outage["read_rate"], during_outage["write_rate"]),
+            (True, 0.0, 0.0),
+        )
+        # 300 B / 2.0 s, ne 300 B / 1.0 s: mezera se prumeruje, protoze se
+        # baseline v chybove vetvi neposunula.
+        self.assertAlmostEqual(after_outage["read_rate"], 150.0)
+        self.assertAlmostEqual(after_outage["write_rate"], 200.0)

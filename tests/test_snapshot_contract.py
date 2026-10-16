@@ -228,6 +228,18 @@ class SnapshotContractTest(unittest.TestCase):
         for proc in processes:
             self.assertEqual(set(proc), {"pid", "name", "cpu", "mem"})
 
+    def test_containers_are_passed_through_untouched(self):
+        """Monitor `groups` nemodifikuje - melka kopie tim prestava byt pasti.
+
+        `DockerCollector.snapshot()` vraci novy top-level dict, ale vnoreny
+        `groups` je tyz objekt jako v jeho internim stavu. Kdyby ho Monitor
+        prepsal (pridal skupine pole, prepsal pocet), otravi to stav vsem
+        dalsim odberatelum - a tise.
+        """
+        monitor = Monitor(Settings())
+        stored = monitor.docker.snapshot()["groups"]
+        self.assertIs(monitor.snapshot()["containers"]["groups"], stored)
+
     def test_processes_reach_the_snapshot_untruncated(self):
         """Monitor preda seznam procesu dal - ne fallback a ne zkraceny.
 

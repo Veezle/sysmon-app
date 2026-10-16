@@ -8,8 +8,10 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from sysmon_app.collectors import battery
+from sysmon_app.config import BATTERY_HISTORY_MAX, BATTERY_HISTORY_SEC
 
 
 class BatteryTest(unittest.TestCase):
@@ -120,6 +122,23 @@ class ReadTest(BatteryTest):
         self.assertTrue(result["available"])
         self.assertIsNone(result["percent"])
 
+    def test_zero_power_now_does_not_raise(self):
+        """power_now = 0 je na realnem stroji bezny - guard ho nesmi pustit k deleni.
+
+        Bez guardu `power > 0` by `energy / power` vyhodil ZeroDivisionError
+        a ten z `read()` unika: vnitrni `except` chyta jen (TypeError, ValueError),
+        vnejsi jen OSError.
+        """
+        self.use_supply({
+            "BAT0": {
+                "type": "Battery", "capacity": "50", "status": "Discharging",
+                "energy_now": "2000000", "power_now": "0",
+            },
+        })
+        result = self.read()
+        self.assertEqual(result["status"], "Discharging")
+        self.assertIsNone(result["time_remaining_minutes"])
+
 
 class HistoryTest(unittest.TestCase):
     def test_empty_history(self):
@@ -135,6 +154,40 @@ class HistoryTest(unittest.TestCase):
             collector.history(),
             [{"t": 0, "v": 80}, {"t": 60, "v": 79}],
         )
+
+
+class ConfigTest(unittest.TestCase):
+    def test_defaults_come_from_config(self):
+        """Interval i strop historie jdou z konfigurace - kvuli tomu se menil import."""
+        collector = battery.BatteryCollector()
+        self.assertEqual(collector._interval, BATTERY_HISTORY_SEC)
+        self.assertEqual(collector._history.maxlen, BATTERY_HISTORY_MAX)
+
+
+class WorkerTest(BatteryTest):
+    def test_loop_samples_and_honours_maxlen(self):
+        """Dvouminutova smycka se neda cekat - podstrci se interval i hodiny.
+
+        `time.sleep` je mimo `try`, takze vyjimka z nej smycku ukonci; tim se
+        da odsimulovat presne tri vzorky bez cekani.
+        """
+        self.use_supply({
+            "BAT0": {"type": "Battery", "capacity": "50", "status": "Charging"},
+        })
+        collector = battery.BatteryCollector(interval=0, max_samples=2)
+        sleep = mock.patch.object(battery.time, "sleep",
+                                  side_effect=[None, None, StopIteration])
+        sleep.start()
+        self.addCleanup(sleep.stop)
+        clock = mock.patch.object(battery.time, "time", side_effect=[1000, 1060, 1120])
+        clock.start()
+        self.addCleanup(clock.stop)
+
+        with self.assertRaises(StopIteration):
+            collector._loop()
+
+        # Tri vzorky, strop dva: zustaly posledni dva a casy jsou relativni.
+        self.assertEqual(collector.history(), [{"t": 0, "v": 50}, {"t": 60, "v": 50}])
 
 
 if __name__ == "__main__":
