@@ -123,13 +123,19 @@ class LoadStaticTest(unittest.TestCase):
 
 class LoadIndexTest(unittest.TestCase):
     def test_index_has_no_inline_style_or_script(self):
-        """CSS a JS patri do static/ - jinak se to tise rozjede s sebou."""
-        index = server.load_index()
-        self.assertNotIn("<style", index)
-        self.assertNotIn("<script>", index)
-        # Kazda znacka zvlast: `<script type="...">` obsahuje kod stejne jako
-        # `<script>`, ale s holym podtrzenim by prosla.
-        for tag in re.findall(r"<script\b[^>]*>", index):
+        """CSS a JS patri do static/ - jinak se to tise rozjede s sebou.
+
+        Vsechno se porovnava nad malymi pismeny: nazvy HTML znacek jsou
+        case-insensitive, takze `<SCRIPT>alert(1)</SCRIPT>` je stejny inline
+        skript jako `<script>` a na holém podtrzeni by prosel.
+        """
+        lower = server.load_index().lower()
+        self.assertNotIn("<style", lower)
+        self.assertNotIn("<script>", lower)
+        # A kazda znacka zvlast: `<script type="...">` obsahuje kod stejne
+        # jako `<script>`, ale s atributy by pres holou kontrolu prosla.
+        # `src=` je jediny pripad, kdy je znacka jen odkaz do static/.
+        for tag in re.findall(r"<script\b[^>]*>", lower):
             self.assertIn("src=", tag, f"inline skript: {tag}")
 
     def test_index_references_static_assets(self):
@@ -222,13 +228,38 @@ class StatsTest(unittest.TestCase):
         self.assertEqual(response.getheader("Content-Length"), "0")
         response.read()
 
-    def test_two_servers_keep_their_own_monitor_and_feed(self):
-        """Kazdy server si nese svuj monitor a feed - stav neni na tride Handler.
+    def test_two_servers_keep_their_own_feed(self):
+        """Feed je na serveru, ne na tride Handler - jinak si ho servery vymeni.
 
-        Stav na tride je spolecny pro cely proces, takze by ho druhe `serve()`
-        tise prepsalo i serveru, ktery uz bezi: kdo se zepta prvniho, dostane
-        data druheho. V teto sade to nikoho nezrani (kazdy test se pta jen
-        sveho serveru), ale v Tasku 10 na tom stoji SSE proud.
+        Feed musi mit co vracet: dokud je `latest()` None, `/stats` se na feed
+        vubec nepodiva a vymena se schova za primy sber. Presne tudy prosla
+        varianta se stavem na tride.
+
+        Riziko je realne: kdo se zepta prvniho serveru, dostane data druheho.
+        V teto sade to nikoho nezrani (kazdy test se pta jen sveho serveru),
+        ale v Tasku 10 na tom stoji SSE proud.
+        """
+        monitor_a = FakeMonitor({"host": "prvni"})
+        monitor_b = FakeMonitor({"host": "druhy"})
+        feed_a = SnapshotFeed(monitor_a)
+        feed_b = SnapshotFeed(monitor_b)
+        feed_a.publish_once()
+        feed_b.publish_once()
+        srv_a, port_a = start_server(monitor=monitor_a, feed=feed_a)
+        srv_b, port_b = start_server(monitor=monitor_b, feed=feed_b)
+        for srv in (srv_a, srv_b):
+            self.addCleanup(srv.shutdown)
+            self.addCleanup(srv.server_close)
+
+        # feed_b je ten, ktery `serve()` videl naposled.
+        self.assertEqual(json.loads(self.get("/stats", port_a).read())["host"], "prvni")
+        self.assertEqual(json.loads(self.get("/stats", port_b).read())["host"], "druhy")
+
+    def test_two_servers_keep_their_own_monitor(self):
+        """Monitor ze stejneho duvodu - pinuje se fallback nad prazdnym feedem.
+
+        Feed se tu zamerne nespousti: prave tahle vetev se na feed nepodiva,
+        takze jako jedina muze prozradit monitor sdileny pres tridu.
         """
         srv_a, port_a = start_server(monitor=FakeMonitor({"host": "prvni"}))
         srv_b, port_b = start_server(monitor=FakeMonitor({"host": "druhy"}))
@@ -238,6 +269,29 @@ class StatsTest(unittest.TestCase):
 
         self.assertEqual(json.loads(self.get("/stats", port_a).read())["host"], "prvni")
         self.assertEqual(json.loads(self.get("/stats", port_b).read())["host"], "druhy")
+
+    def test_static_assets_are_served_over_http(self):
+        """Asset musi jit stahnout i po drate - ne jen z `load_static`.
+
+        Ostatni testy /static/ volaji `load_static` naprimo, takze je
+        nezajima, jestli na tu funkci vubec vede routa: prejmenovany
+        `STATIC_PREFIX`, `load_static(path[1:])` nebo `_send(asset…)`
+        nahrazene za `_send_empty(404)` projdou celou sadou a pritom vraci
+        prazdnou stranku bez CSS i bez JS.
+        """
+        expected = {
+            "/static/style.css": ("style.css", "text/css; charset=utf-8"),
+            "/static/app.js": ("app.js", "application/javascript; charset=utf-8"),
+        }
+        for path, (name, ctype) in expected.items():
+            with self.subTest(path=path):
+                response = self.get(path)
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.getheader("Content-Type"), ctype)
+                # Bajt po bajtu proti souboru na disku: telo jine delky nebo
+                # jineho souboru by pres "neni to prazdne" proslo.
+                self.assertEqual(response.read(),
+                                 (server.STATIC_DIR / name).read_bytes())
 
     def test_404_has_no_body_bytes(self):
         """`Content-Length: 0` musi byt pravda, ne jen hlavicka.

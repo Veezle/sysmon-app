@@ -104,10 +104,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send_empty(404)
 
     def _snapshot_now(self):
-        """Snapshot z feedu; kdyz jeste zadny nebyl, sebere se naprimo.
+        """Snapshot z feedu; dokud zadny nema, sebere se naprimo.
 
-        Diky tomu /stats nikdy necte kolektory samo, jakmile feed bezi -
-        jinak by se rate-based kolektory rozbilyly soubeznym ctenim.
+        Podminka neni "feed bezi", ale "feed uz ma snapshot": mezi
+        `feed.start()` a prvnim tikem je `latest()` jeste None, takze /stats
+        v tom okne kolektory cte - a to soubezne s tikem. Jakmile feed prvni
+        snapshot ma, /stats uz jen serializuje, a teprve tim se rate-based
+        kolektory (sit, disk) prestanou rozbijet soubeznym ctenim.
 
         Snapshot se jen serializuje. Feed vraci tyz dict vsem odberatelum,
         takze pridat do nej klic nebo ho prepsat znamena otravit stav vsem
@@ -127,7 +130,7 @@ def serve(monitor, feed, host=DEFAULT_HOST, port=DEFAULT_PORT):
 
     Monitor a feed sedi na serveru, ne na tride Handler: stav na tride je
     spolecny pro vsechny servery v procesu, takze druhe `serve()` by tise
-    prepsalo feed i prvnímu serveru.
+    prepsalo feed i prvnimu serveru.
     """
     srv = ThreadingHTTPServer((host, port), Handler)
     srv.monitor = monitor
