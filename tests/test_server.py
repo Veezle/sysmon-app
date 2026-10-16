@@ -13,6 +13,7 @@ from unittest import mock
 
 from sysmon_app import server
 from sysmon_app.feed import SnapshotFeed
+from tests import web_fixture
 
 
 class FakeMonitor:
@@ -51,23 +52,32 @@ class LoadStaticTest(unittest.TestCase):
         # nevaze, takze prohozene hodnoty projdou pres "neni None".
         expected = {
             "style.css": "text/css; charset=utf-8",
-            "app.js": "application/javascript; charset=utf-8",
+            "assets/index-abc123.js": "application/javascript; charset=utf-8",
         }
-        for name, ctype in expected.items():
-            asset = server.load_static(name)
-            self.assertIsNotNone(asset, name)
-            self.assertEqual(asset[1], ctype, name)
-            # Nacteny soubor je skutecne ten soubor, ne prazdne bajty.
-            self.assertGreater(len(asset[0]), 0, name)
+        with web_fixture.fake_web() as (_root, static, _index):
+            with mock.patch.object(server, "STATIC_DIR", static):
+                for name, ctype in expected.items():
+                    asset = server.load_static(name)
+                    self.assertIsNotNone(asset, name)
+                    self.assertEqual(asset[1], ctype, name)
+                    # Nacteny soubor je skutecne ten soubor, ne prazdne bajty.
+                    self.assertGreater(len(asset[0]), 0, name)
 
     def test_serves_icon(self):
-        asset = server.load_static("icon.svg")
-        self.assertIsNotNone(asset)
-        self.assertEqual(asset[1], "image/svg+xml")
+        with web_fixture.fake_web() as (_root, static, _index):
+            with mock.patch.object(server, "STATIC_DIR", static):
+                asset = server.load_static("icon.svg")
+                self.assertIsNotNone(asset)
+                self.assertEqual(asset[1], "image/svg+xml")
 
     def test_rejects_traversal(self):
-        self.assertIsNone(server.load_static("../sysmon_app/config.py"))
-        self.assertIsNone(server.load_static("../../etc/passwd"))
+        with web_fixture.fake_web() as (_root, static, _index):
+            with mock.patch.object(server, "STATIC_DIR", static):
+                self.assertIsNone(server.load_static("../config.py"))
+                # Cil existuje a ma povolenou priponu, takze ho odmitne jen
+                # kontrola cesty - ne chybejici soubor.
+                (static.parent / "secret.css").write_text("x", encoding="utf-8")
+                self.assertIsNone(server.load_static("../secret.css"))
 
     def test_rejects_paths_outside_static(self):
         """Ven se nesmi ani pres "..", ani pres absolutni cestu.
@@ -122,27 +132,36 @@ class LoadStaticTest(unittest.TestCase):
 
 
 class LoadIndexTest(unittest.TestCase):
-    def test_index_has_no_inline_style_or_script(self):
-        """CSS a JS patri do static/ - jinak se to tise rozjede s sebou.
+    def test_index_has_no_executable_inline_code(self):
+        """Zakazany je spustitelny inline kod, ne kazda zminka o scriptu.
+
+        Vite build ma `<script type="module" src="/static/assets/...">` a to
+        je legitimni - kod je v souboru, ne v HTML. Co v HTML byt nesmi, je
+        kod zapsany v tele znacky nebo v `on...=` atributech.
 
         Vsechno se porovnava nad malymi pismeny: nazvy HTML znacek jsou
         case-insensitive, takze `<SCRIPT>alert(1)</SCRIPT>` je stejny inline
-        skript jako `<script>` a na holém podtrzeni by prosel.
+        skript jako `<script>` a na holem podtrzeni by prosel.
         """
-        lower = server.load_index().lower()
-        self.assertNotIn("<style", lower)
-        self.assertNotIn("<script>", lower)
-        # A kazda znacka zvlast: `<script type="...">` obsahuje kod stejne
-        # jako `<script>`, ale s atributy by pres holou kontrolu prosla.
-        # `src=` je jediny pripad, kdy je znacka jen odkaz do static/.
+        with web_fixture.fake_web() as (_root, _static, index):
+            with mock.patch.object(server, "WEB_DIR", index.parent):
+                text = server.load_index()
+        lower = text.lower()
+        self.assertNotIn("<style", lower)          # CSS patri do static/
+        for tag in re.findall(r"<script\b[^>]*>(.*?)</script>", lower, re.S):
+            self.assertEqual(tag.strip(), "", f"inline skript: {tag!r}")
         for tag in re.findall(r"<script\b[^>]*>", lower):
-            self.assertIn("src=", tag, f"inline skript: {tag}")
+            self.assertIn("src=", tag, f"skript bez src: {tag}")
+        for handler in re.findall(r"\son[a-z]+\s*=", lower):
+            self.fail(f"inline obsluha udalosti: {handler!r}")
 
-    def test_index_references_static_assets(self):
+    def test_index_references_hashed_static_assets(self):
         """Kdyz uz je CSS a JS mimo HTML, musi na ne HTML odkazovat."""
-        index = server.load_index()
-        self.assertIn('href="/static/style.css"', index)
-        self.assertIn('src="/static/app.js"', index)
+        with web_fixture.fake_web() as (_root, _static, index):
+            with mock.patch.object(server, "WEB_DIR", index.parent):
+                text = server.load_index()
+        self.assertIn('src="/static/assets/', text)
+        self.assertIn('href="/static/assets/', text)
 
 
 class StatsTest(unittest.TestCase):
@@ -217,10 +236,18 @@ class StatsTest(unittest.TestCase):
         self.assertEqual(monitor.calls, 1)
 
     def test_index_is_served_at_root(self):
-        response = self.get("/")
-        self.assertEqual(response.status, 200)
-        self.assertIn("text/html", response.getheader("Content-Type"))
-        self.assertIn("<!DOCTYPE html>", response.read().decode())
+        """I tahle trasa cte fixture, ne repo web/ - jinak by testy drzely build.
+
+        Doctype se porovnava bez ohledu na velikost pismen: Vite ho vydava
+        malymi (`<!doctype html>`) a HTML ho bere case-insensitive, takze pin
+        na presny tvar řetězce by pinoval neco, co spec nepovinuje.
+        """
+        with web_fixture.fake_web() as (_root, _static, index):
+            with mock.patch.object(server, "WEB_DIR", index.parent):
+                response = self.get("/")
+                self.assertEqual(response.status, 200)
+                self.assertIn("text/html", response.getheader("Content-Type"))
+                self.assertIn("<!doctype html>", response.read().decode().lower())
 
     def test_unknown_path_is_404_with_content_length(self):
         response = self.get("/neexistuje")
@@ -278,20 +305,32 @@ class StatsTest(unittest.TestCase):
         `STATIC_PREFIX`, `load_static(path[1:])` nebo `_send(asset…)`
         nahrazene za `_send_empty(404)` projdou celou sadou a pritom vraci
         prazdnou stranku bez CSS i bez JS.
+
+        Podadresar `assets/` je tu proto, ze ho Vite build pouziva: trasa
+        musi umet i vnorenou cestu, ne jen soubor v koreni static/.
         """
-        expected = {
-            "/static/style.css": ("style.css", "text/css; charset=utf-8"),
-            "/static/app.js": ("app.js", "application/javascript; charset=utf-8"),
-        }
-        for path, (name, ctype) in expected.items():
-            with self.subTest(path=path):
-                response = self.get(path)
-                self.assertEqual(response.status, 200)
-                self.assertEqual(response.getheader("Content-Type"), ctype)
-                # Bajt po bajtu proti souboru na disku: telo jine delky nebo
-                # jineho souboru by pres "neni to prazdne" proslo.
-                self.assertEqual(response.read(),
-                                 (server.STATIC_DIR / name).read_bytes())
+        with web_fixture.fake_web() as (_root, static, _index):
+            with mock.patch.object(server, "STATIC_DIR", static):
+                srv, port = start_server()
+                self.addCleanup(srv.shutdown)
+                self.addCleanup(srv.server_close)
+                expected = {
+                    "/static/style.css": (
+                        "style.css", "text/css; charset=utf-8"),
+                    "/static/assets/index-abc123.js": (
+                        web_fixture.ASSET_NAME,
+                        "application/javascript; charset=utf-8"),
+                }
+                for path, (name, ctype) in expected.items():
+                    with self.subTest(path=path):
+                        response = self.get(path, port=port)
+                        self.assertEqual(response.status, 200)
+                        self.assertEqual(response.getheader("Content-Type"), ctype)
+                        # Bajt po bajtu proti souboru na disku: telo jine
+                        # delky nebo jineho souboru by pres "neni to prazdne"
+                        # proslo.
+                        self.assertEqual(response.read(),
+                                         (static / name).read_bytes())
 
     def test_404_has_no_body_bytes(self):
         """`Content-Length: 0` musi byt pravda, ne jen hlavicka.
