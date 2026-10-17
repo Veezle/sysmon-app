@@ -84,6 +84,51 @@ pub fn hidden_from_args<I: Iterator<Item = String>>(args: I) -> bool {
     args.into_iter().any(|arg| arg == "--hidden")
 }
 
+/// Instalovaná cesta neleží pod `target/`; vývojový build ano.
+pub fn installed_exe(path: &Path) -> bool {
+    !path
+        .components()
+        .any(|c| c.as_os_str() == "target")
+}
+
+/// Přepsat `.desktop`, jen když jsme instalovaní a Exec míří jinam.
+/// `None` znamená, že soubor neexistuje — o nabídku se stará `maybe_offer`.
+pub fn should_rewrite(
+    desktop: Option<&str>,
+    current_exe: &Path,
+    installed: bool,
+) -> bool {
+    if !installed {
+        return false;
+    }
+    let Some(content) = desktop else {
+        return false;
+    };
+    let expected = format!("Exec={} --hidden", quote_exec(current_exe));
+    !content.lines().any(|line| line == expected)
+}
+
+/// Tiše přepíše zastaralý `.desktop` (z fáze 3 mířil na target/debug).
+/// Marker se nemění: uživatel už jednou odpověděl a nabídka se neopakuje.
+pub fn migrate_desktop(installed: bool) {
+    if !installed {
+        return;
+    }
+    let desktop = desktop_path();
+    let Ok(content) = fs::read_to_string(&desktop) else {
+        return;
+    };
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    if !should_rewrite(Some(&content), &exe, installed) {
+        return;
+    }
+    if let Err(err) = fs::write(&desktop, desktop_entry(&exe)) {
+        eprintln!("Autostart: {} nelze přepsat: {err}", desktop.display());
+    }
+}
+
 /// Cesty, které do `.desktop` zapsat nelze: non-UTF8, field code `%`
 /// a kontrolní znaky (např. newline).
 fn exe_path_supported(path: &Path) -> Result<(), String> {
@@ -310,6 +355,57 @@ mod tests {
     fn exe_path_supported_rejects_non_utf8() {
         let raw = OsStr::from_bytes(b"/tmp/\xff/sysmon-app");
         assert!(exe_path_supported(Path::new(raw)).is_err());
+    }
+
+    #[test]
+    fn installed_exe_rejects_target() {
+        assert!(installed_exe(Path::new("/usr/bin/sysmon-app")));
+        assert!(!installed_exe(Path::new(
+            "/home/u/repo/src-tauri/target/debug/sysmon-app"
+        )));
+        assert!(!installed_exe(Path::new(
+            "/home/u/repo/src-tauri/target/release/sysmon-app"
+        )));
+    }
+
+    #[test]
+    fn no_desktop_means_no_rewrite() {
+        assert!(!should_rewrite(None, Path::new("/usr/bin/sysmon-app"), true));
+    }
+
+    #[test]
+    fn dev_run_never_rewrites() {
+        let content = desktop_entry(Path::new("/usr/bin/sysmon-app"));
+        assert!(!should_rewrite(
+            Some(&content),
+            Path::new("/home/u/repo/src-tauri/target/debug/sysmon-app"),
+            false
+        ));
+    }
+
+    #[test]
+    fn same_exe_is_left_alone() {
+        let exe = Path::new("/usr/bin/sysmon-app");
+        assert!(!should_rewrite(Some(&desktop_entry(exe)), exe, true));
+    }
+
+    #[test]
+    fn different_exe_is_rewritten() {
+        let old = desktop_entry(Path::new("/home/u/repo/src-tauri/target/debug/sysmon-app"));
+        assert!(should_rewrite(
+            Some(&old),
+            Path::new("/usr/bin/sysmon-app"),
+            true
+        ));
+    }
+
+    #[test]
+    fn garbage_is_rewritten() {
+        assert!(should_rewrite(
+            Some("tohle není .desktop\n"),
+            Path::new("/usr/bin/sysmon-app"),
+            true
+        ));
     }
 
     #[test]

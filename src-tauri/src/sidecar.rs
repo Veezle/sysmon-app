@@ -71,6 +71,46 @@ fn daemon_args() -> [String; 4] {
     ]
 }
 
+/// Odkud se démon spustí. Rozhodnutí se dělá jednou při startu; respawn
+/// po pádu musí použít stejný zdroj, ne hledat znovu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DaemonSource {
+    /// Instalovaný PyInstaller onedir vedle binárky.
+    Bundled(PathBuf),
+    /// Vývojový `python3 -m sysmon_app` z kořene repa.
+    Source(PathBuf),
+}
+
+/// Instalovaný layout je `/usr/bin/sysmon-app` +
+/// `/usr/lib/sysmon-app/daemon/sysmon-app-daemon`; stejný vztah platí
+/// v AppImage mountu i v rozbaleném stromu.
+pub fn bundled_daemon_path(exe: &Path) -> PathBuf {
+    exe.parent()
+        .unwrap_or_else(|| Path::new(""))
+        .join("..")
+        .join("lib")
+        .join("sysmon-app")
+        .join("daemon")
+        .join("sysmon-app-daemon")
+}
+
+pub fn resolve_daemon(exe: &Path, cwd: &Path) -> Result<DaemonSource, String> {
+    let bundled = bundled_daemon_path(exe);
+    if bundled.is_file() {
+        return Ok(DaemonSource::Bundled(bundled));
+    }
+    if daemon_dir_ok(cwd) {
+        return Ok(DaemonSource::Source(cwd.to_path_buf()));
+    }
+    Err(format!(
+        "Nenašel jsem démona.\n\
+         Hledal jsem:\n  {}\n  {} (s sysmon_app/__main__.py)\n\
+         Nainstaluj balíček, nebo spusť aplikaci z kořene repa sysmon-app.",
+        bundled.display(),
+        cwd.display()
+    ))
+}
+
 /// Po `fork` se PPID dítěte musí rovnat PIDu, který ho vytvořil. Porovnávat
 /// proti 1 nestačí: `systemd --user` je subreaper, takže sirotek skončí pod
 /// ním, ne pod PID 1.
@@ -94,15 +134,11 @@ pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
 
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Aktuální adresář nejde zjistit: {e}"))?;
-    if !daemon_dir_ok(&cwd) {
-        return Err(format!(
-            "Nenašel jsem démona: v {} chybí sysmon_app/__main__.py.\n\
-             Spusť aplikaci z kořene repa sysmon-app.",
-            cwd.display()
-        ));
-    }
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("Cestu ke spustitelnému souboru nejde zjistit: {e}"))?;
+    let source = resolve_daemon(&exe, &cwd)?;
 
-    let mut child = spawn_daemon(&cwd, &stderr)?;
+    let mut child = spawn_daemon(&source, &stderr)?;
 
     if let Err(err) = wait_ready(&mut child, &stderr) {
         // Ukončit vlastní nedoběhlé dítě, ať po nás nezůstane viset.
@@ -127,25 +163,25 @@ pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
         pid: pid.clone(),
         quitting: quitting.clone(),
     };
-    start_supervisor(app, cwd, child, owned, pid, quitting, stderr);
+    start_supervisor(app, Arc::new(source), child, owned, pid, quitting, stderr);
     Ok(handle)
 }
 
 fn start_supervisor(
     app: AppHandle,
-    cwd: PathBuf,
+    source: Arc<DaemonSource>,
     child: Child,
     owned: Arc<AtomicBool>,
     pid: Arc<AtomicI32>,
     quitting: Arc<AtomicBool>,
     stderr: Arc<Mutex<VecDeque<String>>>,
 ) {
-    thread::spawn(move || supervise(app, cwd, child, owned, pid, quitting, stderr));
+    thread::spawn(move || supervise(app, source, child, owned, pid, quitting, stderr));
 }
 
 fn supervise(
     app: AppHandle,
-    cwd: PathBuf,
+    source: Arc<DaemonSource>,
     mut child: Child,
     owned: Arc<AtomicBool>,
     pid: Arc<AtomicI32>,
@@ -212,7 +248,7 @@ fn supervise(
                 pid.store(0, Ordering::SeqCst);
                 return;
             }
-            let ready = match spawn_daemon(&cwd, &stderr) {
+            let ready = match spawn_daemon(&source, &stderr) {
                 Ok(mut next) => match wait_ready(&mut next, &stderr) {
                     Ok(()) => Some(next),
                     Err(err) => {
@@ -293,14 +329,23 @@ fn retry_dialog(app: &AppHandle, stderr: &Arc<Mutex<VecDeque<String>>>) -> bool 
 }
 
 fn spawn_daemon(
-    cwd: &Path,
+    source: &DaemonSource,
     stderr: &Arc<Mutex<VecDeque<String>>>,
 ) -> Result<Child, String> {
     let parent_pid = std::process::id() as libc::pid_t;
-    let mut cmd = Command::new("python3");
-    cmd.args(daemon_args())
-        .current_dir(cwd)
-        .stdin(Stdio::null())
+    let mut cmd = match source {
+        DaemonSource::Bundled(path) => {
+            let mut c = Command::new(path);
+            c.args(["--port", &PORT.to_string()]);
+            c
+        }
+        DaemonSource::Source(cwd) => {
+            let mut c = Command::new("python3");
+            c.args(daemon_args()).current_dir(cwd);
+            c
+        }
+    };
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
@@ -411,6 +456,70 @@ pub fn stop_owned(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("čas po epoše")
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("sysmon-app-{name}-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dočasný adresář");
+        dir
+    }
+
+    #[test]
+    fn bundled_path_is_relative_to_exe() {
+        assert_eq!(
+            bundled_daemon_path(Path::new("/usr/bin/sysmon-app")),
+            PathBuf::from("/usr/bin/../lib/sysmon-app/daemon/sysmon-app-daemon")
+        );
+    }
+
+    #[test]
+    fn bundled_daemon_wins_over_source() {
+        let root = temp_dir("bundled");
+        let exe = root.join("usr/bin/sysmon-app");
+        let daemon = root.join("usr/lib/sysmon-app/daemon/sysmon-app-daemon");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(daemon.parent().unwrap()).unwrap();
+        std::fs::write(&exe, b"").unwrap();
+        std::fs::write(&daemon, b"").unwrap();
+        let cwd = root.join("repo");
+        std::fs::create_dir_all(cwd.join("sysmon_app")).unwrap();
+        std::fs::write(cwd.join("sysmon_app/__main__.py"), b"").unwrap();
+
+        // `Path` nezkracuje `..`, takže vrácená cesta má tvar podle binárky.
+        assert_eq!(
+            resolve_daemon(&exe, &cwd).unwrap(),
+            DaemonSource::Bundled(root.join("usr/bin/../lib/sysmon-app/daemon/sysmon-app-daemon"))
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn source_is_used_when_no_bundle() {
+        let root = temp_dir("source");
+        let cwd = root.join("repo");
+        std::fs::create_dir_all(cwd.join("sysmon_app")).unwrap();
+        std::fs::write(cwd.join("sysmon_app/__main__.py"), b"").unwrap();
+        let exe = root.join("usr/bin/sysmon-app");
+        assert_eq!(
+            resolve_daemon(&exe, &cwd).unwrap(),
+            DaemonSource::Source(cwd)
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn missing_daemon_names_both_paths() {
+        let root = temp_dir("missing");
+        let exe = root.join("usr/bin/sysmon-app");
+        let err = resolve_daemon(&exe, &root).unwrap_err();
+        assert!(err.contains("sysmon-app-daemon"));
+        assert!(err.contains("__main__.py"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn daemon_dir_requires_main_module() {
