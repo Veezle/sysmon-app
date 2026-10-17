@@ -3,10 +3,13 @@
 Dashboard systémových metrik pro Linux — jako okno i jako stránka na telefonu.
 Druhý, samostatný produkt vedle `sysmon`; ten se nemění.
 
-**Stav: fáze 1 (démon) i fáze 2 (React frontend) hotové.** Tauri okno, balení a měření paměti
-(fáze 3–4) jsou zatím jen v návrhu. Návrhy:
-`docs/superpowers/specs/2026-10-15-sysmon-app-design.md` a
-`docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`.
+**Stav: fáze 1 (démon) i fáze 2 (React frontend) hotové.** Fáze 3 (Tauri okno)
+je implementovaná — okno, sidecar, dozor, tray, autostart i jedna instance —
+zbývá závěrečné end-to-end ověření. Balení a měření paměti (fáze 4) jsou zatím
+jen v návrhu. Návrhy:
+`docs/superpowers/specs/2026-10-15-sysmon-app-design.md`,
+`docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md` a
+`docs/superpowers/specs/2026-10-17-faze-3-tauri-design.md`.
 
 ## Spuštění démona
 
@@ -38,6 +41,28 @@ Ukončuje se `Ctrl+C`.
 `--host` a `--port` přebijí konfiguraci; `python3 -m sysmon_app --help` vypíše
 oba přepínače i s výchozími hodnotami. Když je port obsazený, démon to napíše
 česky a skončí — ne tracebackem.
+
+## Okno (Tauri)
+
+Nativní okno je Tauri 2 obal; ukazuje na běžícího démona na 8430, takže
+dashboard v okně i v prohlížeči je tentýž. Pokud na 8430 nic neposlouchá,
+aplikace démona spustí sama a při ukončení ho zastaví; cizího démona nechá běžet.
+
+Prerekvizita (Arch): `sudo pacman -S webkit2gtk-4.1`. Potřebuje Rust 1.90
+a novější (`rust-version` v `src-tauri/Cargo.toml`).
+
+    cargo build --manifest-path src-tauri/Cargo.toml
+    cargo run --manifest-path src-tauri/Cargo.toml
+
+Zavřením okna aplikace neskončí — jen se schová do traye. Tray menu má
+„Otevřít dashboard“ a „Ukončit“. V prostředí bez StatusNotifier watchera se
+tray nevytvoří a zavření okna aplikaci ukončí. Spuštění s `--hidden` začne jen
+v trayi (bez traye se okno ukáže); tuhle volbu používá autostart, který se
+nabídne při prvním spuštění.
+
+Démon se v této fázi spouští ze zdrojů (`python3 -m sysmon_app`), takže
+aplikace musí běžet z kořene repa. PyInstaller binárka, `.deb`/`.rpm`/AppImage
+a instalované cesty patří do fáze 4.
 
 ## Co démon vydává
 
