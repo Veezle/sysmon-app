@@ -1243,6 +1243,69 @@ Soubor aplikace neimportuje, aby fixture neputovala do buildu."
 
 ---
 
+> **Uzavření Tasku 4 (2026-10-17) — hotovo, dva commity:** `326fbf2` (typy
+> kontraktu + fixture) a `1b80912` (keyof assertiony, degradovaný vzorek,
+> zúžení `cpu_temp`, poctivé komentáře). Spec recenze ✅; kvalitativní ⚠️ se
+> dvěma important (oba opraveny) a třemi minor (dva opraveny, jeden vědomá
+> mez); delta recenze ✅.
+>
+> **Naměřená čísla:** sada **153 testů** (`test_snapshot_contract` 20),
+> 0 tracebacků. Fixture `tests/fixtures/snapshot.json` má sha256
+> `829bc269…c15d` a po `UPDATE_FIXTURE=1` je bajtově identická (17 top-level
+> klíčů = 16 z `ALWAYS_PRESENT` + `cpu_temp`). `npm run typecheck` OK;
+> `npm run build` OK; v `sysmon_app/web/static/assets/` nejsou `stroj`,
+> `clovek`, `contractFixture` ani `contractDegraded` — fixture se do buildu
+> nezbundluje. Mutanty: přidání povinného `nova_metrika` (který fixture nemá)
+> → `TS1360`; odebrání `host` z typu → typecheck projde (extra JSON klíč
+> `satisfies` nehlídá); `cpu: number`→`string` i změna hodnoty ve fixture na
+> `"12.5"` → `TS1360`; přejmenování `util`→`percent`, `status_label`→
+> `statusLabel`, `Names`→`NamesX`, `cpu_temp`→`cpuTemp` → `TS2344` (keyof
+> assertiony); `vendor`/`kernel`/`disk.percent` na povinné → `TS1360`
+> (degradovaný vzorek); `groups: []` místo objektu → `TS1360`.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Kostra typů lhala o skutečných tvarech.** Ověřeno proti
+>   `collectors/*.py` a `monitor.py`: `net` má `total_up` (ne `total_sent`),
+>   `gpu` má `util` (ne `percent`) a fallback `{available: false}` bez
+>   `error`, `mem`/`swap` nemají `available`, `battery` má `status_label`
+>   a `ac_online`, `system` padá na `{}` (všechna pole volitelná), `processes`
+>   je vždy pole, `containers` je
+>   `{available, error, groups: Record<string, ContainerInfo[]>}` (ne
+>   `{groups: [], running}`). Fixture i typy používají tyto tvary.
+> - **`satisfies` sám nestačí.** Extra klíče JSON nehlídá a názvy volitelných
+>   polí nepinuovuje; přidány `keyof` assertiony a `contractDegraded`
+>   s fallbackovými tvary, takže přejmenování `util` nebo zesílení `vendor`
+>   na povinné typecheck shodí.
+> - **`cpu_temp?: number`**, ne `number | null` — produkt klíč buď nepřidá,
+>   nebo pošle číslo.
+> - **Komentáře v `snapshot.contract.ts` a `snapshot.ts` zpřesněny**
+>   (podmnožina Docker polí, stabilita fixture, kdo padá na `{}`).
+>
+> **Vědomé meze:**
+> - `satisfies` nehlídá extra klíče ani názvy volitelných polí; kryjí to
+>   keyof assertiony pro pole, která UI používá, a degradovaný vzorek. Nové
+>   volitelné pole musí přidat do obou míst, jinak ho pin nechrání.
+> - Fixture je ručně zmrazený reprezentant, ne mechanicky odvozený
+>   z kolektorů; nested tvary nejsou s Pythonem svázané. Top-level klíčovou
+>   sadu pinuje Python test, tvary TS.
+> - `npm run typecheck` není součástí Python sady; kdo běží jen `unittest`,
+>   drift typů neuvidí.
+> - **Neblokující nález z delta recenze:** komentář u `contractDegraded` říká
+>   „Presne tyhle tvary vraceji fallbacky z `Monitor.snapshot()`“, ale objekt
+>   je `{...fixture, ...overrides}` a obsahuje i klíče z fixture, které
+>   fallbacky nejsou (`mem`, `swap`, `cpu_temp`, …). Tvary jsou správné
+>   a pinované; text zpřesnit při příštím dotyku `snapshot.contract.ts`.
+>
+> **Poučení:** (1) kontrakt na dvou jazycích se pinuje ze dvou stran — Python
+> klíčovou sadu a stabilitu fixture, TS tvary; `satisfies` nehlídá extra klíče
+> ani volitelné názvy, proto keyof assertiony a degradovaný vzorek; (2) plánová
+> kostra typů není spec — tvary se berou z kolektorů (`util`, `total_up`,
+> `groups` jako objekt); (3) fixture generovaná kódem musí být stabilní
+> a přegenerovatelná jen explicitním příznakem, jinak zestárne tiše. Zapsáno
+> v `CLAUDE.md`.
+
+---
+
 ### Task 5: Datová vrstva — `/stats`, SSE proud a pojistka proti zamrznutí
 
 **Goal:** Jeden hook, který drží snapshot: první vykreslení z `/stats`, pak

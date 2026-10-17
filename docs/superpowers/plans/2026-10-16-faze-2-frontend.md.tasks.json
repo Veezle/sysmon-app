@@ -28,7 +28,7 @@
     {
       "id": 3,
       "subject": "Task 4: Typy kontraktu a fixture, která nemůže zestárnout",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** `snapshot.ts` popisuje kontrakt a `snapshot.contract.ts` ho pinuje proti fixture generované Pythonem.\n\n**Files:**\n- Create `tests/fixtures/snapshot.json`, `frontend/src/types/snapshot.ts`, `frontend/src/types/snapshot.contract.ts`\n- Modify `tests/test_snapshot_contract.py`\n\n**Acceptance Criteria:**\n- [ ] fixture je stabilní (žádné časy, procenta ani PIDy)\n- [ ] test porovnává fixture na disku s čerstvě vygenerovanou (UPDATE_FIXTURE=1 přegeneruje)\n- [ ] `npm run typecheck` projde\n- [ ] přidání povinného klíče do typu bez klíče ve fixture typecheck shodí (ověřeno)\n- [ ] `snapshot.contract.ts` není importovaný z aplikace\n\n**Verify:** `cd frontend && npm run typecheck` (bez chyb) + `python3 -m unittest tests.test_snapshot_contract -v` → PASS\n\n```json:metadata\n{\"files\": [\"tests/fixtures/snapshot.json\", \"tests/test_snapshot_contract.py\", \"frontend/src/types/snapshot.ts\", \"frontend/src/types/snapshot.contract.ts\"], \"verifyCommand\": \"cd frontend && npm run typecheck\", \"acceptanceCriteria\": [\"fixture stabilní a hlídaná\", \"typecheck pinuje tvary\", \"fixture se nezbundluje\"]}\n```",
       "blockedBy": [
         1
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T09:46:54+02:00"
+  "lastUpdated": "2026-10-17T10:09:20+02:00"
 }

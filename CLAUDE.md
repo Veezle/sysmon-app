@@ -43,9 +43,13 @@ referencí). Build servíruje démon beze změny rout (`/`, `/static/*`), dev
 server proxyuje `/stats` a `/events` na 8430. Hotový **Task 3** — hashované
 assety mají `immutable`, index a ikona `no-store`; chybějící build se hlásí
 česky při startu (`rc=2`) i za běhu (503) a sada má **151 testů** a projde
-i bez buildu (`OK (skipped=2)`). **Další na řadě je Task 4:** typy kontraktu
-a fixture generovaná Pythonem. Python závislost je pořád jen `psutil`; JS
-závislosti žijí jen ve `frontend/package.json` a lockfile se commituje.
+i bez buildu (`OK (skipped=2)`). Hotový **Task 4** — `frontend/src/types/snapshot.ts`
+popisuje kontrakt a `snapshot.contract.ts` ho pinuje proti fixture generované
+Pythonem; sada má **153 testů** a `npm run typecheck` hlídá tvary (keyof
+assertiony + degradovaný vzorek). **Další na řadě je Task 5:** datová vrstva
+`/stats` + SSE s pojistkou proti zamrznutí. Python závislost je pořád jen
+`psutil`; JS závislosti žijí jen ve `frontend/package.json` a lockfile se
+commituje.
 
 Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
 předlohu**,
@@ -285,6 +289,22 @@ Postup u jednoho tasku:
   a `socketserver` vytiskne traceback — sada přitom hlásí OK. Tělo se musí
   přečíst, i když ho test nepotřebuje; jinak pin na „žádný traceback“ nic
   neříká.
+- **Kontrakt na dvou jazycích se pinuje ze dvou stran.** Python pinuje
+  klíčovou sadu a stabilitu fixture, TypeScript tvary. `satisfies` ale
+  nehlídá extra klíče JSON ani názvy **volitelných** polí: přejmenování
+  `util`→`percent` projde, protože starý klíč je „extra“ a nový je volitelný
+  a chybí. Proto `keyof` assertiony pro pole, která UI používá, a degradovaný
+  vzorek (fallbacky), který pinuje volitelnost. Naměřeno v Tasku 4: bez nich
+  prošly čtyři přejmenování i tři „zesílení“ volitelného pole na povinné.
+- **Kostra typů v plánu není spec.** Task 4 kostra měla `percent` místo
+  `util`, `total_sent` místo `total_up`, `mem.available`, a
+  `containers: {groups: [], running}` místo objektu skupin. Tvary se berou
+  z kolektorů a `Monitor.snapshot()`, ne z názvů klíčů; jeden `satisfies` nad
+  živým i degradovaným snapshotem to odhalí.
+- **Fixture generovaná kódem musí být stabilní a přegenerovatelná jen
+  explicitně.** `UPDATE_FIXTURE=1` je jediná cesta; ruční editace musí test
+  shodit. Hash před/po přegenerování musí sedět, jinak fixture závisí na
+  stroji nebo čase a tiše zestárne.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
