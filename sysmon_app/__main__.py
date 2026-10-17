@@ -16,6 +16,8 @@ import errno
 import socket
 import sys
 
+# `serve` a `load_index` se podstrkuji pres `vstupni_bod` (testovaci seam);
+# `server_modul` je tu kvuli patchovatelnemu `WEB_DIR`.
 from sysmon_app import server as server_modul
 from sysmon_app.config import Settings, load_settings
 from sysmon_app.feed import SnapshotFeed

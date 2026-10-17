@@ -455,7 +455,8 @@ class CacheHeadersTest(unittest.TestCase):
                          "public, max-age=31536000, immutable")
 
     def test_hashed_css_asset_is_immutable(self):
-        """i CSS: mutant, ktery cacheuje immutable jen podle pripony .js, jinak projde."""
+        """i CSS: mutant, ktery cacheuje immutable jen podle pripony .js,
+        jinak projde."""
         response = self.get(f"/static/{web_fixture.STYLE_NAME}")
         self.assertEqual(response.status, 200)
         self.assertEqual(response.getheader("Cache-Control"),
@@ -466,6 +467,20 @@ class CacheHeadersTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.get(path).getheader("Cache-Control"),
                                  "no-store")
+
+    def test_dot_segment_does_not_smuggle_unhashed_file_into_immutable(self):
+        """`assets/../icon.svg` lezi v koreni static/, takze no-store.
+
+        Rozhoduje umisteni souboru, ne syrova cesta: bez normalizace by
+        kazdy nehashovany soubor sel do immutable jen tim, ze se k nemu
+        pripise `assets/../`.
+        """
+        for path in ("/static/assets/../icon.svg",
+                     "/static/assets/../style.css"):
+            with self.subTest(path=path):
+                response = self.get(path)
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.getheader("Cache-Control"), "no-store")
 
 
 class MissingBuildTest(unittest.TestCase):
@@ -492,6 +507,7 @@ class MissingBuildTest(unittest.TestCase):
         self.assertEqual(response.status, 503)
         self.assertEqual(response.getheader("Content-Type"),
                          "text/plain; charset=utf-8")
+        self.assertEqual(response.getheader("Cache-Control"), "no-store")
         self.assertIn("zbuilděný", body)
         self.assertIn("npm ci && npm run build", body)
         # Traceback na stderr znamena, ze vyjimka prosla do socketserveru.
@@ -537,6 +553,7 @@ class BuildDisappearsTest(unittest.TestCase):
             self.assertEqual(response.status, 503)
             self.assertEqual(response.getheader("Content-Type"),
                              "text/plain; charset=utf-8")
+            self.assertEqual(response.getheader("Cache-Control"), "no-store")
             self.assertIn("zbuilděný", body)
             self.assertIn("npm ci && npm run build", body)
 

@@ -31,16 +31,22 @@ STATIC_TYPES = {
     ".svg": "image/svg+xml",
 }
 
-# Hashovane assety z Vite buildu se nikdy nemeni pod svym jmenem, takze se
-# mohou cachovat navzdy. Vsechno ostatni (index.html, ikona, style.css) jmeno
-# nemeni, ale obsah ano - tam cache znamena starou verzi po rebuildu.
+# Vite dava hashovane assety do assets/, takze soubor, ktery tam lezi, se pod
+# svym jmenem nikdy nemeni a muze se cachovat navzdy. Vsechno ostatni
+# (index.html, ikona, style.css) jmeno nemeni, ale obsah ano - tam cache
+# znamena starou verzi po rebuildu.
 IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
 HASHED_ASSET_DIR = "assets/"
 
 
 def cache_for(name):
-    """Cache-Control pro soubor z /static/ podle toho, jestli ma hash v ceste."""
-    return IMMUTABLE_CACHE if name.startswith(HASHED_ASSET_DIR) else "no-store"
+    """Cache-Control pro soubor z /static/ podle toho, kde lezi.
+
+    Nerozhoduje tvar nazvu, ale to, ze soubor lezi v assets/. Cesta se proto
+    normalizuje: `assets/../icon.svg` lezi v koreni static/, ne v assets/.
+    """
+    normalized = os.path.normpath(name)
+    return IMMUTABLE_CACHE if normalized.startswith(HASHED_ASSET_DIR) else "no-store"
 
 
 def load_index():
