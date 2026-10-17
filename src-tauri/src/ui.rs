@@ -1,5 +1,11 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use gtk::prelude::*;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
+};
 
 pub const WINDOW_LABEL: &str = "main";
 pub const DASHBOARD_URL: &str = "http://127.0.0.1:8430/";
@@ -31,6 +37,61 @@ pub fn hostname() -> Option<String> {
 pub fn window_title() -> String {
     let user = std::env::var("USER").ok();
     window_title_from(user.as_deref(), hostname().as_deref())
+}
+
+/// Drží, jestli se tray podařilo vytvořit. Bez traye nemá okno kam se schovat,
+/// takže zavření okna musí aplikaci ukončit.
+pub struct TrayAvailable(pub AtomicBool);
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CloseAction {
+    Hide,
+    Exit,
+}
+
+pub fn close_action(tray_available: bool) -> CloseAction {
+    if tray_available {
+        CloseAction::Hide
+    } else {
+        CloseAction::Exit
+    }
+}
+
+pub fn tray_available(app: &AppHandle) -> bool {
+    app.try_state::<TrayAvailable>()
+        .map(|state| state.0.load(Ordering::Relaxed))
+        .unwrap_or(false)
+}
+
+pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Otevřít dashboard", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Ukončit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &quit])?;
+
+    let mut builder = TrayIconBuilder::with_id("main")
+        .menu(&menu)
+        .tooltip("Sysmon")
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+    builder.build(app)?;
+    Ok(())
 }
 
 pub fn create_main_window(app: &AppHandle, hidden: bool) -> tauri::Result<()> {
@@ -102,5 +163,11 @@ mod tests {
     fn user_without_host_is_not_used() {
         assert_eq!(window_title_from(Some("veezle"), None), "Sysmon");
         assert_eq!(window_title_from(Some(""), Some("")), "Sysmon");
+    }
+
+    #[test]
+    fn close_hides_only_with_tray() {
+        assert_eq!(close_action(true), CloseAction::Hide);
+        assert_eq!(close_action(false), CloseAction::Exit);
     }
 }

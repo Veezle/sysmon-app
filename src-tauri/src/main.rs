@@ -1,6 +1,8 @@
 mod sidecar;
 mod ui;
 
+use std::sync::atomic::AtomicBool;
+
 use tauri::Manager;
 
 fn main() {
@@ -21,11 +23,25 @@ fn main() {
                 }
             };
             app.manage(handle);
+
+            let tray_ok = ui::create_tray(app.handle()).is_ok();
+            app.manage(ui::TrayAvailable(AtomicBool::new(tray_ok)));
+
             if let Err(err) = ui::create_main_window(app.handle(), false) {
                 sidecar::stop_owned(app.handle());
                 return Err(err.into());
             }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if ui::close_action(ui::tray_available(window.app_handle()))
+                    == ui::CloseAction::Hide
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .build(tauri::generate_context!())
         .expect("Tauri aplikaci se nepodařilo sestavit")
