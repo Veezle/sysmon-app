@@ -3,3 +3,4 @@ __pycache__/
 node_modules/
 sysmon_app/web/
 src-tauri/target/
+src-tauri/gen/
