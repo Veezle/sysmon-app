@@ -2673,6 +2673,81 @@ git commit -m "plán: uzavření fáze 2 s naměřenými čísly"
 Do uzavření patří: počet testů, výsledek screenshotového srovnání, co se
 lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 
+> **Uzavření Tasku 11 (2026-10-17) — hotovo, tento commit:** end-to-end ověření
+> fáze 2. Naměřeno na `archlinux` (Node v22.23.2, Chrome headless), build
+> znovu spuštěn (`npm ci && npm run build`, Vite 8.3.4, 31 modulů,
+> `index.html` 0.45 kB, CSS `index-B3ABFkqn.css` 9.89 kB,
+> JS `index-NczL2IAE.js` 233.11 kB).
+>
+> **Sada testů s buildem:** `Ran 156 tests in 29.529s` → **OK, 0 skipped**.
+> Piny z Tasku 9 (`tests/test_frontend_build.py`) hlásily **3× `ok`**:
+> privacy, rebuild (`mutations=0`, `same=true,true,true,true`, polls ≥ 50)
+> a fallback bez SSE.
+>
+> **Sada testů bez buildu** (`mv sysmon_app/web /tmp/web-off`):
+> `Ran 156 tests in 21.622s` → **OK (skipped=5)**, důvod
+> „chybi build (npm run build ve frontend/)": tři piny
+> `test_frontend_build.py` a dva build-závislé testy v `test_server.py`
+> (`test_real_build_index_has_no_executable_inline_code`,
+> `test_real_build_serves_cache_headers_over_http`). Web byl poté vrácen zpět.
+>
+> **Screenshotové srovnání:** oba démoni běželi současně
+> (`python3 ../sysmon/sysmon.py` na 8420, `python3 -m sysmon_app` na 8430).
+> Snímky pořízené přes CDP `Page.captureScreenshot` s
+> `captureBeyondViewport` po reálném čekání (proti živému SSE se
+> `--virtual-time-budget` nepoužil); oba **1400 × 2257 px** při viewportu
+> 1400×2400. Snímky prohlédnuté: **9 karet, shodné pořadí, popisky i
+> geometrie** — `id`, label, x/y/w/h jsou na obou portech totožné
+> (CPU 888×421 @ 30,349; GPU 436×421 @ 934,349; RAM/baterie/síť 436×464
+> @ y=786; disk/porty/procesy 436×457 @ y=1266; Docker 1340×488 @ y=1739).
+> Počty řádků v seznamech shodné: `#cores` 16, `#services-list` 5,
+> `#proc-list` 5, `#docker-containers` 1. Graf baterie se objevil na obou
+> (`display: block`, canvas 390×52) — oba démoni běželi přes 2 minuty, takže
+> měly ≥ 2 vzorky historie.
+>
+> **Co se lišilo a proč:** pouze živé hodnoty (CPU, GPU, teploty, síťové
+> rate, pořadí procesů, stav baterie — ta se mezi dvěma snímky přepnula
+> z „Vybíjí se" na „Nenabíjí se", což potvrdilo i následné čtení `/stats`
+> na obou portech) a **akční tlačítka**: 8420 má u procesů křížky `kill`
+> a u kontejnerů restart, 8430 žádná — to je záměr Tasku 8, ne regrese.
+> **Titulek se liší:** 8420 má dynamický `veezle@archlinux — Sysmon`, 8430
+> statické `Sysmon` (viz vědomé meze).
+>
+> **Kontrakt a proud:** `/stats` na 8420 i 8430 vrací **17 klíčů** a množiny
+> jsou shodné (`battery, battery_history, containers, cpu, cpu_cores,
+> cpu_temp, disk, gpu, host, loadavg, mem, net, processes, services, swap,
+> system, user`). První rámec `/events` na 8430 má tytéž klíče.
+> `curl -N --max-time 5 localhost:8430/events | grep -c "^data: "` → **4**
+> rámce (první hned při přihlášení + tik každých `TICK_SEC = 1,5 s`).
+> V jedné CDP session nad LAN URL: `esFrames` **4 → 11** za ~10,5 s
+> (7 rámců, přesně cadence 1,5 s), `statsFetches` zůstal **1** (žádný
+> polling), `performance.timeOrigin` konstantní, `navEntries = 1`.
+>
+> **Telefon / aktualizace bez obnovení:** `curl` proti LAN adrese
+> `http://192.168.1.170:8430/` → **200** `text/html` (451 B), `/stats` →
+> 200 `application/json` (5 528 B), `/events` po LAN → 3 rámce za 5 s.
+> Ve stejné prohlížečové session (Chrome headless přes CDP, URL LAN
+> adresou) se bez obnovení změnily `#cpu` 9 → 7 → 8 → 7 → 7 → 11 → 12 → 9,
+> `#mem` 39 → 40 i síťové hodnoty; `timeOrigin` a `navEntries` zůstaly
+> konstantní, takže šlo o živou aktualizaci, ne o reload. Pro srovnání
+> 8420 v téže době: `esFrames = 0`, `statsFetches` 5 → 12 (polling 1,5 s).
+>
+> **Ukončení:** démoni ukončeni explicitními PID (`SIGTERM`); `ss -ltnp`
+> po ukončení neukazuje žádný listener na 8420 ani 8430. `git -C ../sysmon
+> status --short` čistý, `git status --short` v `sysmon-app` čistý.
+>
+> **Vědomé meze:**
+> - **Skutečný telefon (jiné zařízení) nebyl po ruce.** LAN cesta je
+>   ověřená jen z téhož stroje (`curl` a Chrome přes LAN IP), takže není
+>   změřená průchodnost z jiného zařízení ani chování dotykového prohlížeče.
+> - **Titulek `Sysmon` vs `sysmon-app`:** statický titulek v
+>   `frontend/index.html`; oprava je kosmetická produktová změna mimo
+>   `Files` tohoto tasku a mimo jeho acceptance (karty se netýká). Rozhodnutí:
+>   neopravovat v Tasku 11, zapsat jako větu pro fázi 3–4 (nebo samostatný
+>   malý task); 8420 navíc titulek obohacuje o `uzivatel@host`, 8430 ne.
+> - **Status v README** má orchestrátor vrátit na „fáze 2 hotová"; `README.md`
+>   není v `Files` tohoto tasku, takže ho implementátor needitoval.
+
 ---
 
 ## Hotovo znamená
