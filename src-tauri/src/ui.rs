@@ -196,13 +196,35 @@ pub fn ask_autostart(app: &AppHandle) -> bool {
         parent.as_ref(),
         gtk::DialogFlags::empty(),
         gtk::MessageType::Question,
-        gtk::ButtonsType::YesNo,
+        gtk::ButtonsType::None,
         "Spouštět Sysmon při přihlášení?",
     );
     dialog.set_title("Sysmon");
+    dialog.add_button("Ano", gtk::ResponseType::Yes);
+    dialog.add_button("Ne", gtk::ResponseType::No);
+    dialog.set_default_response(gtk::ResponseType::Yes);
     let response = dialog.run();
     dialog.close();
     response == gtk::ResponseType::Yes
+}
+
+/// Jednoduché české oznámení s jediným tlačítkem. Používá se tam, kde
+/// „Zkusit znovu / Ukončit“ nedává smysl (např. nepovedený zápis autostartu).
+pub fn notice_dialog(app: &AppHandle, message: &str) {
+    let parent = app
+        .get_webview_window(WINDOW_LABEL)
+        .and_then(|w| w.gtk_window().ok());
+    let dialog = gtk::MessageDialog::new(
+        parent.as_ref(),
+        gtk::DialogFlags::empty(),
+        gtk::MessageType::Warning,
+        gtk::ButtonsType::None,
+        message,
+    );
+    dialog.set_title("Sysmon");
+    dialog.add_button("Zavřít", gtk::ResponseType::Close);
+    dialog.run();
+    dialog.close();
 }
 
 #[cfg(test)]
