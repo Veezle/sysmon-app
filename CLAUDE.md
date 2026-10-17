@@ -46,10 +46,12 @@ assety mají `immutable`, index a ikona `no-store`; chybějící build se hlás�
 i bez buildu (`OK (skipped=2)`). Hotový **Task 4** — `frontend/src/types/snapshot.ts`
 popisuje kontrakt a `snapshot.contract.ts` ho pinuje proti fixture generované
 Pythonem; sada má **153 testů** a `npm run typecheck` hlídá tvary (keyof
-assertiony + degradovaný vzorek). **Další na řadě je Task 5:** datová vrstva
-`/stats` + SSE s pojistkou proti zamrznutí. Python závislost je pořád jen
-`psutil`; JS závislosti žijí jen ve `frontend/package.json` a lockfile se
-commituje.
+assertiony + degradovaný vzorek). Hotový **Task 5** — `useSnapshot` drží
+snapshot: první data z `/stats`, pak SSE; po 4,5 s ticha přepne na polling
+každých 1,5 s a stav `live: false`; `format.ts` portuje formátovací helpery.
+**Další na řadě je Task 6:** vzhled — CSS, hlavička a karty CPU/GPU/RAM.
+Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
+`frontend/package.json` a lockfile se commituje.
 
 Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
 předlohu**,
@@ -305,6 +307,20 @@ Postup u jednoho tasku:
   explicitně.** `UPDATE_FIXTURE=1` je jediná cesta; ruční editace musí test
   shodit. Hash před/po přegenerování musí sedět, jinak fixture závisí na
   stroji nebo čase a tiše zestárne.
+- **Fallback, který při pollu posouvá stale timestamp, polluje každých
+  `STALE_MS`.** V Tasku 5 posouval `take()` „čas posledního rámce“ i při poll
+  odpovědi, takže po prvním pollu se další odložil o 4,5 s místo 1,5 s
+  (naměřeno 6,0 s vs 1,5 s). Stale timestamp se smí posouvat **jen při SSE
+  rámci**; polling ho nesmí měnit, jinak se cadence tiše zpomalí.
+- **Staleness na monotónním čase a `live:false` při vypršení.** `Date.now()`
+  a posun hodin zpět (−5 min) fallback vypnul (polling 3 → 3); `performance.now()`
+  ho nechal běžet (3 → 8). A `live:false` se musí nastavit už při vypršení
+  staleness, ne až při úspěšném pollu — jinak mrtvý proud se selhávajícím
+  pollem ukazuje „SSE“ a zamrzlá čísla (naměřeno 8,2 s i 13,2 s).
+- **`--virtual-time-budget` proti otevřenému SSE visí.** Chrome čeká na
+  otevřený fetch, takže živý proud s tímto flagem nedumpne DOM (`rc=124`);
+  mrtvá SSE větev flagem projde. Živá data se měří CDP v reálném čase, ne
+  virtual-time budgetem.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.

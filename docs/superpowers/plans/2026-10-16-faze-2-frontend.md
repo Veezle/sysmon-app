@@ -1460,6 +1460,11 @@ Expected: dva různé běhy dají **různé** hodnoty CPU (data se aktualizují)
 jeden neobsahuje `–`. Kdyby byly stejné, je to podezřelé — změř to víckrát
 a zapiš, co jsi viděl.
 
+> **Poznámka po uzavření:** tento příkaz proti **živému** SSE visí
+> (`--virtual-time-budget` čeká na otevřený fetch; naměřeno `rc=124`).
+> Živá cesta se měřila přes CDP v reálném čase; mrtvá SSE větev a první
+> vykreslení flagem prošly. Viz uzavření Tasku 5.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -1470,6 +1475,77 @@ Prvni vykresleni jde z /stats, pak zivi EventSource; kdyz ramec nedorazi do
 STALE_MS, prepne se na polling a stav to prizna. Tise zamrzly dashboard je
 vada, kterou ma net kolektor zdedenou - tady se na ni ceka."
 ```
+
+---
+
+> **Uzavření Tasku 5 (2026-10-17) — hotovo, dva commity:** `258dd4e` (data
+> z `/stats` + SSE + fallback) a `70d2af5` (`live:false` při vypršení staleness
+> i při selhávajícím pollu; monotónní `performance.now()`). Spec recenze ✅;
+> kvalitativní ⚠️ s 1 important (opraven) a 4 minor (1 opraven, 2 odloženy do
+> Tasku 6, 1 zapsán zde); delta recenze ✅.
+>
+> **Naměřená čísla:** sada **153 testů** OK, 0 tracebacků. Živé SSE: různé CPU
+> mezi čteními (např. 3 → 1), `live:"SSE"`, jediný úvodní `/stats`;
+> auto-reconnect (harness zavíral spojení) → 6× `events-open`, rámce zase
+> tekly, jediný `/stats`. Mrtvé SSE: první vykreslení z `/stats`
+> (`host=harness`, `live=poll`), polling **4,5 s** po mountu a pak každých
+> **1,5 s** (naměřeno `+4.50 +1.50 +1.50 +1.50`). Rozbitá varianta (poll
+> posouvá `lastFrame`) dala `+6.00` a výrazně méně requestů (2 vs 6). Po rámci
+> uprostřed fallbacku: polling se zastavil, do 5,5 s (> `STALE_MS`) žádný
+> `/stats`, `live:"SSE"`; zpožděná `/stats` odpověď po rámci se zahodila
+> (guard `lastFrame`/`appliedSeq`; mutant bez obou ukázal stará data). Unmount
+> (dočasný build s `root.unmount()`): po 4,5 s žádný poll, `EventSource`
+> zavřený. `format.ts`: 0 neshod proti `app.js` na desítkách vstupů
+> (uptime/ports/bytes, včetně `undefined`, `NaN`, `±Infinity`, duplicit, IPv6).
+>
+> **Oprava IMPORTANTu:** scénář „živé SSE 3 s → proud utne + `/stats` 500“
+> dával na starém buildu v 8,2 s i 13,2 s `live:"SSE"` se zamrzlými čísly;
+> nový build `live:"poll"`. Clock skew −5 min: starý build polling zastavil
+> (3 → 3), nový pokračoval (3 → 8). Oprava `live` nepřerenderovává každý tik:
+> build s čítačem renderů 3 → 3 vs mutant 6 → 7.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Polling cadence v předloze byla chybná.** `take()` posouval `lastFrame`
+>   i při pollu, takže po prvním pollu se další odložil o `STALE_MS`
+>   (naměřeno 6,0 s místo 1,5 s). `lastFrame` se nyní posouvá jen při SSE
+>   rámci; polling response ho nemění.
+> - **`formatPorts` bere string, ne `number[]`.** Předloha měla špatný typ;
+>   v `app.js` je to raw Docker `Ports` string (`raw.split(",")`).
+>   `formatUptime` bere `number | undefined` (`system.uptime_seconds` je
+>   volitelné).
+> - **Přidány guardy proti starší odpovědi** (`lastFrame` + `appliedSeq`)
+>   a try/catch kolem `JSON.parse`; bez nich mohl pozdní `/stats` přepsat
+>   novější SSE rámec.
+> - **`live` se překlápí už při vypršení staleness**, ne až při úspěšném
+>   pollu; jinak mrtvý proud + selhávající poll ukazoval `SSE` a zamrzlá
+>   čísla.
+> - **Staleness používá `performance.now()`**, ne `Date.now()`; posun
+>   systémových hodin zpět jinak fallback vypne.
+> - **Plánový Verify (`--virtual-time-budget`) proti živému SSE visí**
+>   (Chrome čeká na otevřený fetch; `timeout 20` → rc=124). Měřeno přes CDP
+>   v reálném čase; mrtvá SSE větev a první vykreslení šly flagem.
+>
+> **Vědomé meze:**
+> - `App.tsx` je jen kostra: chybu zobrazí jen když `snapshot === null`, takže
+>   selhání pollu při existujícím snapshotu není vidět; texty jsou `String(e)`
+>   („Chyba: Error: 500“). Patří do Tasku 6, kde vzniká skutečné UI.
+> - Bez `AbortController`: po unmountu už odeslaný fetch doběhne, ale
+>   `cancelled` zabrání `setState`. Naměřeno, že nové polly po unmountu
+>   nevznikají.
+> - Poškozený `data:` rámec se tiše zahodí (poslední dobrý snapshot zůstává);
+>   syntakticky platný, ale neúplný rámec by mohl shodit render — server je
+>   same-origin a tvar garantuje kontrakt.
+> - `setInterval` tiká každých 1,5 s i při živém SSE (jeden levný callback);
+>   při `live:false` vrací `setState` stejný objekt, takže žádný re-render.
+> - Přímé odmountování není v repu testované (bez frontendové testovací
+>   knihovny); ověřeno dočasným buildem s `root.unmount()`, ne trvalým pinem.
+>
+> **Poučení:** (1) fallback, který při pollu posouvá stale timestamp, polluje
+> každých `STALE_MS`, ne `POLL_MS`; (2) staleness se měří monotónním časem —
+> `Date.now()` a posun hodin zpět fallback vypne; (3) `live:false` patří
+> k vypršení staleness, ne k úspěchu pollu, jinak mrtvý proud se selhávajícím
+> pollem lže „SSE“; (4) `--virtual-time-budget` proti otevřenému SSE visí —
+> měř reálným časem. Zapsáno v `CLAUDE.md`.
 
 ---
 

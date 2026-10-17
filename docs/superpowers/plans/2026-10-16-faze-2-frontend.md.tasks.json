@@ -37,7 +37,7 @@
     {
       "id": 4,
       "subject": "Task 5: Datová vrstva /stats + SSE s pojistkou",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Hook `useSnapshot`: první vykreslení z `/stats`, pak `EventSource('/events')`, a při tichu přepnutí na polling se stavem `live: false`.\n\n**Files:**\n- Create `frontend/src/data/useSnapshot.ts`, `frontend/src/lib/format.ts`\n- Modify `frontend/src/App.tsx`\n\n**Acceptance Criteria:**\n- [ ] první vykreslení z `/stats`\n- [ ] rámce z `/events` aktualizují snapshot\n- [ ] po `STALE_MS` ticha se polluje `/stats` každých `POLL_MS` a stav je `live: false`\n- [ ] po odmountování nezůstane EventSource ani timer\n- [ ] konstanty jsou pojmenované a okomentované jako duplikát `TICK_SEC`\n\n**Verify:** dva běhy headless Chroma s různým `--virtual-time-budget` dají různé hodnoty CPU\n\n```json:metadata\n{\"files\": [\"frontend/src/data/useSnapshot.ts\", \"frontend/src/lib/format.ts\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"první vykreslení z /stats\", \"SSE aktualizuje\", \"fallback na polling\", \"úklid při odmountování\"]}\n```",
       "blockedBy": [
         3
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T10:09:20+02:00"
+  "lastUpdated": "2026-10-17T10:55:36+02:00"
 }
