@@ -2702,13 +2702,14 @@ lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 > @ y=786; disk/porty/procesy 436×457 @ y=1266; Docker 1340×488 @ y=1739).
 > Počty řádků v seznamech shodné: `#cores` 16, `#services-list` 5,
 > `#proc-list` 5, `#docker-containers` 1. Graf baterie se objevil na obou
-> (`display: block`, canvas 390×52) — oba démoni běželi přes 2 minuty, takže
-> měly ≥ 2 vzorky historie.
+> (`display: block`, canvas 390×52) — jeho přítomnost na obou portech
+> dokládá ≥ 2 vzorky historie v obou snapshotech.
 >
 > **Co se lišilo a proč:** pouze živé hodnoty (CPU, GPU, teploty, síťové
-> rate, pořadí procesů, stav baterie — ta se mezi dvěma snímky přepnula
-> z „Vybíjí se" na „Nenabíjí se", což potvrdilo i následné čtení `/stats`
-> na obou portech) a **akční tlačítka**: 8420 má u procesů křížky `kill`
+> rate, pořadí procesů, stav baterie — ten se mezi snímky změnil
+> (`Nenabíjí se` na 8420 → `Vybíjí se` na 8430); následné čtení `/stats`
+> vracelo na obou portech stejná syrová data, takže jde o živý stav, ne
+> o rozdíl renderu) a **akční tlačítka**: 8420 má u procesů křížky `kill`
 > a u kontejnerů restart, 8430 žádná — to je záměr Tasku 8, ne regrese.
 > **Titulek se liší:** 8420 má dynamický `veezle@archlinux — Sysmon`, 8430
 > statické `Sysmon` (viz vědomé meze).
@@ -2717,8 +2718,9 @@ lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 > jsou shodné (`battery, battery_history, containers, cpu, cpu_cores,
 > cpu_temp, disk, gpu, host, loadavg, mem, net, processes, services, swap,
 > system, user`). První rámec `/events` na 8430 má tytéž klíče.
-> `curl -N --max-time 5 localhost:8430/events | grep -c "^data: "` → **4**
-> rámce (první hned při přihlášení + tik každých `TICK_SEC = 1,5 s`).
+> `curl -N --max-time 5 localhost:8430/events | grep -c "^data: "` → **3–4**
+> rámce (první rámec dorazí až dalším tikem ~0,86 s po přihlášení, další
+> každých `TICK_SEC = 1,5 s`).
 > V jedné CDP session nad LAN URL: `esFrames` **4 → 11** za ~10,5 s
 > (7 rámců, přesně cadence 1,5 s), `statsFetches` zůstal **1** (žádný
 > polling), `performance.timeOrigin` konstantní, `navEntries = 1`.
