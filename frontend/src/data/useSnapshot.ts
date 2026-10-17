@@ -20,7 +20,8 @@ export function useSnapshot(): SnapshotState {
     error: null,
   });
   // Cas posledniho SSE ramce. Polling ho NEMENI - jinak by se dalsi poll
-  // odlozil o STALE_MS a cadence by byla spatna.
+  // odlozil o STALE_MS a cadence by byla spatna. Cas je monotonni
+  // (performance.now): posun systemovych hodin zpet nesmi fallback vypnout.
   const lastFrame = useRef(0);
   // Poradi uz aplikovanych dat; chrani proti starsi odpovedi, ktera dojde
   // pozdeji nez novy SSE ramec nebo novy poll.
@@ -31,7 +32,7 @@ export function useSnapshot(): SnapshotState {
     let cancelled = false;
     // Pri mountu bereme cas za "ziva data": prvni /stats dorazi hned a do
     // STALE_MS se nema pollovat.
-    lastFrame.current = Date.now();
+    lastFrame.current = performance.now();
 
     const take = (data: Snapshot, live: boolean) => {
       if (cancelled) return;
@@ -39,7 +40,7 @@ export function useSnapshot(): SnapshotState {
     };
 
     const fetchStats = () => {
-      const started = Date.now();
+      const started = performance.now();
       const seq = ++requestSeq.current;
       fetch("/stats")
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -64,7 +65,7 @@ export function useSnapshot(): SnapshotState {
         const data = JSON.parse(event.data) as Snapshot;
         // Jedine misto, ktere posouva lastFrame: zivy ramec znamena, ze proud
         // bezi, takze polling nema co delat.
-        lastFrame.current = Date.now();
+        lastFrame.current = performance.now();
         appliedSeq.current = ++requestSeq.current;
         take(data, true);
       } catch {
@@ -73,7 +74,11 @@ export function useSnapshot(): SnapshotState {
     };
 
     const timer = window.setInterval(() => {
-      if (Date.now() - lastFrame.current < STALE_MS) return;
+      if (performance.now() - lastFrame.current < STALE_MS) return;
+      // Stav se preklopi driv, nez poll vubec dobehne: kdyz proud umlkl, je
+      // live false i tehdy, kdyz /stats prave vraci 500. Uspech pollu ho
+      // potvrdi, pozdejsi SSE ramec zase prepne na true.
+      setState((s) => (s.live ? { ...s, live: false } : s));
       fetchStats();
     }, POLL_MS);
 
