@@ -89,8 +89,13 @@ v `docs/superpowers/plans/2026-10-17-faze-3-tauri.md`, průběh v `.tasks.json`
 vedle plánu. Pracuje se na větvi **`faze-3-tauri`**. Hotový **Task 1** —
 `src-tauri/` (Tauri 2 bez vlastního frontendu, okno ukazuje na 8430) se
 zbuildí a otevře dashboard; 5 testů titulku, `Cargo.lock` verzovaný,
-`src-tauri/target/` a `src-tauri/gen/` ignorované. **Další na řadě je
-Task 2:** sidecar — spawn, readiness a PDEATHSIG.
+`src-tauri/target/` a `src-tauri/gen/` ignorované. Hotový **Task 2** —
+sidecar: aplikace spustí démona, jen když 8430 neposlouchá, předá mu
+explicitní `--port 8430`, čeká na readiness TCP connectem a vlastněného
+démona drží přes `PR_SET_PDEATHSIG` (kontrola proti PIDu rodiče, ne
+proti 1 — `systemd --user` je subreaper); 10 testů, 5/5 `kill -9` → port
+volný, cizí démon přežije. **Další na řadě je Task 3:** dozor — restart,
+exit code 2, chybový dialog.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 

@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 2: Sidecar — spuštění, readiness, PDEATHSIG",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Aplikace spusti demona, kdyz 8430 neposloucha; PDEATHSIG zabiji vlastneneho demona pri padu Tauri.\n\n**Files:**\n- src-tauri/src/sidecar.rs\n- src-tauri/src/main.rs\n\n**Acceptance Criteria:**\n- bez demona aplikace spusti python3 -m sysmon_app a ceka na 8430\n- s bezicim demonem nespusti druhy\n- kill -9 Tauri -> port volny (5x)\n- cizi demon prezije ukonceni aplikace\n- unit test daemon_dir_ok\n\n**Verify:** cargo test --manifest-path src-tauri/Cargo.toml + lifecycle skript\n\n```json:metadata\n{\"files\": [\"src-tauri/src/sidecar.rs\", \"src-tauri/src/main.rs\"], \"verifyCommand\": \"cargo test --manifest-path src-tauri/Cargo.toml + lifecycle skript\", \"acceptanceCriteria\": [\"bez demona aplikace spusti python3 -m sysmon_app a ceka na 8430\", \"s bezicim demonem nespusti druhy\", \"kill -9 Tauri -> port volny (5x)\", \"cizi demon prezije ukonceni aplikace\", \"unit test daemon_dir_ok\"]}\n```",
       "blockedBy": [
         0
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T16:54:00+02:00"
+  "lastUpdated": "2026-10-17T17:48:00+02:00"
 }
