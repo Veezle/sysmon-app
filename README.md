@@ -3,10 +3,9 @@
 Dashboard systémových metrik pro Linux — jako okno i jako stránka na telefonu.
 Druhý, samostatný produkt vedle `sysmon`; ten se nemění.
 
-**Stav: fáze 1 (démon) i fáze 2 (React frontend) hotové.** Fáze 3 (Tauri okno)
-je implementovaná — okno, sidecar, dozor, tray, autostart i jedna instance —
-zbývá závěrečné end-to-end ověření. Balení a měření paměti (fáze 4) jsou zatím
-jen v návrhu. Návrhy:
+**Stav: fáze 1 (démon), fáze 2 (React frontend) i fáze 3 (Tauri okno) hotové.**
+Fáze 3 je ověřená end-to-end — okno, sidecar, dozor, tray, autostart i jedna
+instance. Balení a měření paměti (fáze 4) jsou zatím jen v návrhu. Návrhy:
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`,
 `docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md` a
 `docs/superpowers/specs/2026-10-17-faze-3-tauri-design.md`.

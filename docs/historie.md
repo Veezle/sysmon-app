@@ -99,6 +99,10 @@ nekončí (2 procesy). Vědomá mez: druhá instance spuštěná během startu p
 (okno ještě neexistuje) tiše nic nezviditelní. **33 testů**, build i clippy
 čisté. **Další na řadě je Task 7:** README po fázi 3.
 
+**Dokončení (2026-10-17):** Task 7 (README po fázi 3) a Task 8 (end-to-end
+ověření) hotové; fáze 3 uzavřena v plánu. Detaily v `docs/STATE.md` a
+v uzavřeních plánu.
+
 ## Poučení o předlohách v plánu
 
 Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
