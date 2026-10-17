@@ -35,6 +35,19 @@ export function formatPorts(raw?: string): string {
   return out.join("  ");
 }
 
+// Port `color` z `app.js`: barva pruhu podle prahu. Stejnou funkci pouziva
+// pruh karty i jednotliva jadra, takze se barva nikdy nerozejde.
+export function coreColor(p: number): string {
+  return p < 60 ? "var(--green)" : p < 85 ? "var(--amber)" : "var(--red)";
+}
+
+// Chybovy stav ze `useSnapshot` je `String(e)`; uzivateli ale patri ceska
+// veta, ne "Error: 500". HTTP status zname, vse ostatni je selhani spojeni.
+export function describeError(raw: string): string {
+  const m = /^Error: (\d{3})$/.exec(raw);
+  return m ? `server vrátil ${m[1]}` : "spojení se serverem selhalo";
+}
+
 // Bajty v base-1024 s jednim desetinnym mistem: 1536 -> "1.5 KB".
 export function fmt(bytes: number): string {
   let b = bytes;
