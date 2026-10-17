@@ -2021,6 +2021,66 @@ sluzeb. Token, akcni hlavicky a /action/ routy z frontendu zmizely - produkt
 zadne akce nema."
 ```
 
+> **Uzavření Tasku 8 (2026-10-17) — hotovo, commit `40d793e`:** karty služeb,
+> procesů a Dockeru; token, akční hlavičky a `/action/` z frontendu zmizely.
+> Spec recenze ✅; kvalitativní ✅ (0 blokujících, 6 minor zapsáno níže).
+>
+> **Naměřená čísla:** sada **153 testů** OK; build i typecheck rc 0 (JS
+> 233,11 kB, CSS beze změny). Živě: **9 karet** ve správném pořadí, `#svc-count`
+> = `3 / 5`, pět řádků položku po položce shodných s 8420 (22/3306/8080 on,
+> 5173/8081 off), `#proc-count` = `top 5`, `#docker-count` = `3 běží`,
+> **0 tlačítek** v celém `#root` (na 8420 je 5 ✕ a 3 ↻) a **0 konzolových
+> warningů**. `grep` na `token|actionHeaders|missingTokenMessage|/action/|
+> ✕|↻` nad `frontend/src` → rc=1; totéž v hotovém bundlu 0 výskytů. Prázdné
+> `[watch_ports]` na 8443: `#svc-count` = „—“ (U+2014) a přesně „Nesleduji
+> žádné porty — nastav [watch_ports] v config.toml“, 0 řádků; na 8430 hláška
+> není. Konstantní snapshot 10 s: **0 childList/characterData/attribute
+> mutací** v seznamech, tytéž uzly, 0 longtasků, ~0,7 ms/tik skriptu.
+> Reorder i PID recyklace: uzly zůstávají, jen se přesouvají/aktualizují.
+> Docker stavy: `available:false` → `N/A` + `off` + chyba/„Docker není
+> dostupný“; 0 běžících → `0 běží` + „Žádné běžící kontejnery“; skupina jen
+> s exited se nevykreslí ani nepočítá. Skupiny s `"42"` a `"Ostatní"`: DOM
+> `42, Zeta, alpha, Ostatní` — `Ostatní` poslední, ostatní v pořadí serveru.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Prázdné `watch_ports` má vlastní stav.** Ověřeno, že `get_services()`
+>   vrací položku i pro offline port, takže `services === []` znamená jen
+>   prázdnou konfiguraci; karta hlásí „Nesleduji žádné porty“ a `#svc-count`
+>   je „—“ místo „0 / 0“.
+> - **`"Ostatní"` se vynucuje na konec.** Server posílá skupiny seřazené, ale
+>   JS řadí celočíselné klíče objektu dopředu; bez vynucení by `Ostatní`
+>   u číselného názvu projektu skončilo uprostřed.
+> - **`#proc-count` zůstává statické „top 5“** jako v `app.js`; `app.js` ho
+>   nikdy nepřepisuje a `TOP_PROCESSES_N = 5`.
+> - **Žádná tlačítka ani handlery** — `procRow` a `dockerRow` se portovaly bez
+>   akcí; z frontendu zmizel i token.
+>
+> **Vědomé meze:**
+> - Duplicitní React key, pokud by kontejner neměl `Names` ani `ID`
+>   (`key` by byl `"projekt::"`). `docker ps` posílá obojí vždy; oprava by
+>   byla indexový fallback.
+> - Skupiny s **čistě číselným** názvem projektu se v klientu řadí numericky,
+>   ne podle `casefold` serveru (`"10"` před `"2"`). Compose jméno začínající
+>   číslicí je validní, ale vzácný; `Ostatní` poslední zůstává. Oprava by
+>   byla klientem seřadit stejně jako Python.
+> - `memo` je u karet inertní (nové identity z `JSON.parse`), ale naměřeno
+>   0 DOM mutací a ~0,7 ms/tik — měnit nic.
+> - Hlavička karet se opakuje v 9 komponentách; abstrahovat by znamenalo
+>   sáhnout na 9 souborů mimo rozsah a Task 9 přidává piny, ne karty. Vědomě
+>   odloženo.
+> - `"Ostatní"` je řetězec duplikovaný mezi `docker.py` a `DockerCard.tsx`
+>   bez typové vazby; při přejmenování na backendu by UI jen špatně řadilo.
+> - Překlep v komentáři `ServicesCard.tsx` („tady se nese radi“ místo „tady
+>   se neradi“) — kosmetika.
+>
+> **Poučení:** (1) prázdný seznam může znamenat „nic se nesleduje“, ne
+> „všechno je dole“ — rozhoduje, co zdroj dat vrací pro offline položky;
+> (2) pořadí objektu přes JSON není spolehlivé pro celočíselné klíče — když
+> UI závisí na pořadí ze serveru, musí výjimku vynutit explicitně;
+> (3) duplicate key je v produkčním Reactu tichý (warning jen v dev buildu),
+> takže fallback key musí být neprázdný i pro teoreticky nedosažitelný tvar.
+> Zapsáno v `CLAUDE.md`.
+
 ---
 
 ### Task 9: Piny, které měří produkt, ne komponenty

@@ -59,8 +59,12 @@ tlačítek (diff má přesně 5 hunků), hlavička a karty CPU/GPU/RAM jsou
 a relativní čas, takže po naplnění 24h historie (720 vzorků) se přestal měnit
 a graf tiše zamrzl; opraveno podpisem hodnot (`902af03`). Naměřeno: 8
 identických pollů → 1 kreslení, 7 různých historií → 7 kreslení, 0 DOM mutací
-mezi snapshoty. **Další na řadě je Task 8:** služby, procesy, Docker — a konec
-mrtvých tlačítek.
+mezi snapshoty. Hotový **Task 8** — služby, procesy a Docker; token, akční
+hlavičky a `/action/` z frontendu zmizely a v celém UI nejsou žádná tlačítka
+(na 8420 jich `sysmon` má 8). Prázdné `watch_ports` se čte jako „Nesleduji
+žádné porty“ s `#svc-count` = „—“; naměřeno 9 karet, 0 konzolových warningů
+a 0 DOM mutací za 10 s konstantního snapshotu. **Další na řadě je Task 9:**
+piny, které měří produkt (privacy build, stabilita DOM, fallback bez SSE).
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -361,6 +365,22 @@ Postup u jednoho tasku:
   správnosti — u grafu baterie se vada projevila až po 24 h běhu, což žádný
   krátký test ani screenshot neukáže. Recenze se má ptát, jak se tvar dat
   **mění v čase** (append-only okno, rotace deque), ne jen jak vypadá teď.
+- **Prázdný seznam může znamenat „nic se nesleduje“, ne „všechno je dole“.**
+  V Tasku 8 se `services === []` čte jako „Nesleduji žádné porty“ s `#svc-count`
+  = „—“, protože `get_services()` vrací položku i pro offline port — nula
+  položek tedy znamená prázdnou konfiguraci, ne výpadek. Před hláškou
+  o výpadku je nutné zjistit, co zdroj dat vrací pro **existující, ale
+  neběžící** položku.
+- **Pořadí objektu přes JSON není spolehlivé pro celočíselné klíče.** Python
+  pošle skupiny seřazené (`"10"` před `"2"`), ale `Object.keys` v JS vytáhne
+  celočíselné klíče dopředu a seřadí je numericky (`"2"` před `"10"`).
+  Když UI závisí na pořadí ze serveru, musí výjimku vynutit explicitně;
+  u Dockeru se navíc `"Ostatní"` posouvá na konec. Otázka: **které klíče
+  JSONu projdou `JSON.parse` beze změny pořadí?**
+- **Duplicate React key je v produkci tichý.** Warning se objeví jen v dev
+  buildu; fallback key musí být neprázdný i pro tvar, který kolektor „nikdy“
+  nevydá. V Tasku 8 by kontejner bez `Names` i `ID` dal `"projekt::"`, a dva
+  takové by splynuly. Dev build je pro takové scénáře levnější než produkční.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.

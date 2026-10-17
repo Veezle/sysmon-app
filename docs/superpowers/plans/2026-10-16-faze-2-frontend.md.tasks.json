@@ -64,7 +64,7 @@
     {
       "id": 7,
       "subject": "Task 8: Služby, procesy, Docker — a konec mrtvých tlačítek",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Zbylé karty, oprava prázdné konfigurace portů a úplné odstranění tokenu a akcí.\n\n**Files:**\n- Create `frontend/src/components/{ServicesCard,ProcessesCard,DockerCard}.tsx`\n- Modify `frontend/src/App.tsx`\n\n**Acceptance Criteria:**\n- [ ] prázdné `services` se čte jako „Nesleduji žádné porty“ (i v `#svc-count`)\n- [ ] v `frontend/src` není zmínka o tokenu ani `/action/`\n- [ ] nevykreslují se žádná tlačítka ✕/↻\n- [ ] seznamy mají stabilní `key` (port, PID, skupina+kontejner)\n- [ ] Docker seskupuje podle projektu s „Ostatní“ poslední\n\n**Verify:** `grep -rniE \"token|/action/\" frontend/src/` → nic; `--dump-dom` s prázdným `[watch_ports]` hlásí „Nesleduji žádné porty“\n\n```json:metadata\n{\"files\": [\"frontend/src/components/ServicesCard.tsx\", \"frontend/src/components/ProcessesCard.tsx\", \"frontend/src/components/DockerCard.tsx\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"prázdné watch_ports se čte správně\", \"žádný token ani akce\", \"stabilní key v seznamech\"]}\n```",
       "blockedBy": [
         6
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T12:58:50+02:00"
+  "lastUpdated": "2026-10-17T13:22:12+02:00"
 }
