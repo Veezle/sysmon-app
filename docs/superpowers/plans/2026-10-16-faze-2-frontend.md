@@ -1560,6 +1560,25 @@ hlavička a tři karty, které se aktualizují tik po tiku.
   `Cores.tsx`, `GpuCard.tsx`, `MemCard.tsx`, `Bar.tsx`
 - Modify: `frontend/src/App.tsx`, `frontend/src/main.tsx` (import CSS)
 
+> **Poznámky z uzavření Tasku 5 (závazné pro tento task):**
+> - `frontend/src/main.tsx` už `import "./styles/style.css";` obsahuje
+>   z Tasku 2 — neduplikuj ho; pokud import zůstane, `main.tsx` se nemění.
+> - `frontend/src/lib/format.ts` je hotový, ale `coreColor(v)` (port `color`
+>   z `app.js`) v něm chybí; přidej ho tam. `Bar` musí kromě `width`
+>   nastavovat i `background` podle prahu (jinak se barva pruhu nikdy
+>   nezmění) — použij stejnou funkci jako `Cores`.
+> - `Snapshot.gpu` **nemá `error`** (kolektor ho nevrací); degradovaný stav
+>   vykresli jako dnešní `app.js` („nedetekováno“ v `#gpu-sub`), ne přes
+>   `gpu.error`.
+> - Odložené minor nálezy z Tasku 5: `App.tsx` má zobrazit `error` i tehdy,
+>   když už `snapshot` existuje (např. „poslední data před …“), a chybové
+>   texty mapovat na češtinu místo `String(e)` („Chyba: Error: 500“).
+> - **`--virtual-time-budget` proti živému SSE visí** (Task 5, naměřeno
+>   rc=124). Pro screenshot 8430 použij CDP (`Page.captureScreenshot` po
+>   reálném čekání) nebo dočasný harness s mrtvým `/events`; 8420 (sysmon)
+>   používá polling, takže flagem projde. Procesy uklízej explicitními PID,
+>   ne `%1 %2`.
+
 **Acceptance Criteria:**
 - [ ] Vzhled je **1:1**: CSS se přenáší beze změny až na odstraněné styly
       mrtvých tlačítek (`.proc-kill`, `.ctr-action` včetně `:hover`/`:disabled`)

@@ -50,6 +50,9 @@ assertiony + degradovaný vzorek). Hotový **Task 5** — `useSnapshot` drží
 snapshot: první data z `/stats`, pak SSE; po 4,5 s ticha přepne na polling
 každých 1,5 s a stav `live: false`; `format.ts` portuje formátovací helpery.
 **Další na řadě je Task 6:** vzhled — CSS, hlavička a karty CPU/GPU/RAM.
+V zadání Tasku 6 jsou zapsané poznámky z Tasku 5 (chybový stav i se starým
+snapshotem, `coreColor`/barva `Bar`, `gpu.error` neexistuje, screenshot 8430
+přes CDP — `--virtual-time-budget` proti živému SSE visí).
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
