@@ -1,7 +1,8 @@
 # Aktuální stav
 
-- **Fáze 3 (Tauri obal) je hotová** — všech 8 tasků `completed`, end-to-end
-  ověřeno a uzavřeno v plánu (commity `ae95b2d` + `d6224e2`).
+- **Fáze 3 (Tauri obal) je hotová a mergnutá do `main`** — všech 8 tasků
+  `completed`, end-to-end ověřeno a uzavřeno v plánu (commity `ae95b2d`
+  + `d6224e2`). Větev `faze-3-tauri` zůstává jako záchranná síť.
 - **Další krok:** fáze 4 (balení a měření paměti) — zatím jen v návrhu,
   žádné tasky v trackeru. Plán fáze 3:
   `docs/superpowers/plans/2026-10-17-faze-3-tauri.md`; stav tasků
