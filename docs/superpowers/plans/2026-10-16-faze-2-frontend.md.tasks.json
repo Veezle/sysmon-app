@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 2: Skelet frontendu a build do sysmon_app/web/",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** `frontend/` s Vite + React + TS, který se buildí do `sysmon_app/web/`; dnešní kopie frontendu se z repa smaže.\n\n**Files:**\n- Create `frontend/package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `src/main.tsx`, `src/App.tsx`, `public/static/icon.svg`, `package-lock.json`\n- Modify `.gitignore`\n- Delete `sysmon_app/web/index.html`, `sysmon_app/web/static/{app.js,style.css,icon.svg}`\n\n**Acceptance Criteria:**\n- [ ] `npm ci && npm run build` vytvoří `sysmon_app/web/index.html` a `static/assets/index-<hash>.js`\n- [ ] démon build servíruje: `/` → 200 text/html, oba assety (.js i .css) → 200\n- [ ] `git status` je po buildu čistý\n- [ ] stará kopie frontendu je z repa smazaná\n- [ ] `npm run dev` proxyuje `/stats` na 8430 (ověřeno po drátě)\n\n**Verify:** build + curl po drátě (Step 6) a dev proxy (Step 8)\n\n```json:metadata\n{\"files\": [\"frontend/\", \".gitignore\", \"sysmon_app/web/\"], \"verifyCommand\": \"cd frontend && npm ci && npm run build\", \"acceptanceCriteria\": [\"build do sysmon_app/web/\", \"assety pod /static/assets/\", \"git status čistý\", \"dev proxy na 8430\"]}\n```",
       "blockedBy": [
         0
@@ -20,7 +20,7 @@
       "id": 2,
       "subject": "Task 3: Démon umí servírovat build (cache hlavičky, chybějící build)",
       "status": "pending",
-      "description": "**Goal:** Hashované assety `immutable`, `index.html` `no-store`; chybějící build se hlásí česky při startu i za běhu.\n\n**Files:**\n- Modify `sysmon_app/server.py`\n- Modify `sysmon_app/__main__.py`\n- Test `tests/test_server.py`, `tests/test_main.py`\n\n**Acceptance Criteria:**\n- [ ] hashovaný asset má `Cache-Control: public, max-age=31536000, immutable`\n- [ ] `/` a `icon.svg` mají `no-store`\n- [ ] bez buildu: česká věta s cestou a příkazem, rc=2, bez tracebacku\n- [ ] když build zmizí za běhu: `GET /` → 503 text/plain s českou větou\n\n**Verify:** `python3 -m unittest tests.test_server tests.test_main -v` → PASS; živý běh s přesunutým buildem\n\n```json:metadata\n{\"files\": [\"sysmon_app/server.py\", \"sysmon_app/__main__.py\", \"tests/test_server.py\", \"tests/test_main.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_server tests.test_main -v\", \"acceptanceCriteria\": [\"immutable pro hashované assety\", \"no-store pro index\", \"chybějící build hlásí větou (rc=2)\", \"503 za běhu\"]}\n```",
+      "description": "**Goal:** Hashované assety `immutable`, `index.html` `no-store`; chybějící build se hlásí česky při startu i za běhu.\n\nPoznámka z recenze Tasku 2: v `server.py` aktualizovat zastaralý docstring (jmenuje `style.css`/`app.js`; build už vydává `static/assets/index-<hash>.{js,css}`).\n\n**Files:**\n- Modify `sysmon_app/server.py`\n- Modify `sysmon_app/__main__.py`\n- Test `tests/test_server.py`, `tests/test_main.py`\n\n**Acceptance Criteria:**\n- [ ] hashovaný asset má `Cache-Control: public, max-age=31536000, immutable`\n- [ ] `/` a `icon.svg` mají `no-store`\n- [ ] bez buildu: česká věta s cestou a příkazem, rc=2, bez tracebacku\n- [ ] když build zmizí za běhu: `GET /` → 503 text/plain s českou větou\n\n**Verify:** `python3 -m unittest tests.test_server tests.test_main -v` → PASS; živý běh s přesunutým buildem\n\n```json:metadata\n{\"files\": [\"sysmon_app/server.py\", \"sysmon_app/__main__.py\", \"tests/test_server.py\", \"tests/test_main.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_server tests.test_main -v\", \"acceptanceCriteria\": [\"immutable pro hashované assety\", \"no-store pro index\", \"chybějící build hlásí větou (rc=2)\", \"503 za běhu\"]}\n```",
       "blockedBy": [
         1
       ]
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T00:15:59+02:00"
+  "lastUpdated": "2026-10-17T09:08:57+02:00"
 }

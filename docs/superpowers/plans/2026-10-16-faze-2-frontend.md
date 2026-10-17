@@ -620,6 +620,58 @@ v ../sysmon."
 
 ---
 
+> **Uzavření Tasku 2 (2026-10-17) — hotovo, dva commity:** `36ca792` (skelet
+> Vite + React + TS, build do `sysmon_app/web/`, smazaná stará kopie) a
+> `b5ddaa2` (komentáře ve `vite.config.ts` bez diakritiky). Spec recenze
+> ✅, kvalitativní recenze ⚠️ se dvěma minor nálezy (jeden opraven, druhý
+> odložen do Tasku 3 — viz níže).
+>
+> **Naměřená čísla:** `npm ci` z čisté extrakce commitu (`git archive`) → 25
+> balíčků, 0 vulnerabilities; build je deterministický (dva běhy i dvě nezávislé
+> extrakce daly stejné hashe): `index.html` 451 B (`4a6a5933…`),
+> `static/assets/index-DwUz2KZ4.js` 219 637 B (`c32b5e13…`),
+> `static/assets/index-TZrNw7dA.css` 15 B (`6d606818…`),
+> `static/icon.svg` 309 B (`3e8d64f0…`, byte-identická s `../sysmon`).
+> Po drátě: `/` → 200 `text/html`, `.js` → 200 `application/javascript`
+> (Content-Length 219 637, sha256 shodný s diskem), `.css` → 200 `text/css`,
+> ikona → 200 `image/svg+xml`, `/stats` → 200. Dev server: `/` → 200,
+> `/stats` přes proxy → 200 `application/json` s `host` i `user`,
+> `/events` přes proxy → 200 `text/event-stream` s daty. Headless Chrome
+> `--dump-dom` → `<div id="root"><main id="dashboard">Sysmon</main></div>`.
+> Sada: **143 testů, OK**; v čistém klonu bez buildu `OK (skipped=1)`.
+> `git status` po buildu prázdný, `../sysmon` nedotčen.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Předloha nechala kostru bez jakéhokoli CSS**, takže Vite `.css` asset
+>   nevyrobil — a kontrola v Step 6 by s prázdnou URL z grepu poslala curl na
+>   `/`, dostala 200 `text/html` a tvářila se jako úspěch. Přidán minimální
+>   `frontend/src/styles/style.css` (reset `body { margin: 0; }`) importovaný
+>   v `main.tsx`; Task 6 jen přepíše jeho obsah, `main.tsx` už měnit nemusí.
+> - **`emptyOutDir: true` smaže z disku i staré trackované soubory** v
+>   `sysmon_app/web/`, takže „`git status` po buildu čistý“ vyžaduje
+>   naistagovat mazání **před** buildem (`git rm --cached` čtyř explicitních
+>   cest). Pořadí kroků v předloze to nemohlo splnit.
+> - **`git add sysmon_app/web` v Step 9 je zakázaný** — adresář je ignorovaný;
+>   mazání už je naistagované. Použity jen explicitní cesty.
+>
+> **Vědomé meze:**
+> - `tsconfig.json` má `include: ["src"]`, takže `npm run typecheck`
+>   nekontroluje `vite.config.ts` (naměřeno: `const bad: string = 42` tam
+>   projde, v `src/App.tsx` selže `TS2322`, rc=2). Vite config načítá při
+>   buildu/devu, takže skutečná chyba je hlasitá; plán tsconfig předepisuje
+>   přesně takto.
+> - `package.json` nemá `engines`; Vite 8 vyžaduje Node `^20.19 || >=22.12`.
+>   Na Node 20.18 build jen varuje a projde; na stroji je 22.23.2. README
+>   v Tasku 10 má verzi Node uvést.
+> - **Odložený nález (MINOR 2):** docstring `sysmon_app/server.py` na řádku 5
+>   ještě jmenuje `web/static/style.css`, `app.js`, `icon.svg`; build už vydává
+>   `static/assets/index-<hash>.{js,css}`. Opravit v Tasku 3, který `server.py`
+>   stejně otevírá (chování se nemění). Zapsáno i v zadání Tasku 3.
+> - Komentáře ve `vite.config.ts` měly v předloze diakritiku; po recenzi
+>   převedeny do ASCII podle konvence „komentáře bez diakritiky“.
+
+---
+
 ### Task 3: Démon umí servírovat build (cache hlavičky, chybějící build)
 
 **Goal:** Hashované assety se cachují `immutable`, `index.html` naopak
@@ -629,6 +681,12 @@ v ../sysmon."
 - Modify: `sysmon_app/server.py` (`_send`, `load_index`, `do_GET`)
 - Modify: `sysmon_app/__main__.py` (`main`)
 - Test: `tests/test_server.py`, `tests/test_main.py`
+
+> **Poznámka z recenze Tasku 2:** docstring `server.py` (řádek 5) ještě
+> jmenuje `web/static/style.css`, `app.js` a `icon.svg`; build už vydává
+> `static/assets/index-<hash>.{js,css}`. Při této tasku docstring aktualizuj —
+> jinak kdo podle něj ladí `/static/`, zkusí smazané cesty a dostane 404.
+> Chování se nemění.
 
 **Acceptance Criteria:**
 - [ ] `GET /static/assets/index-<hash>.js` má

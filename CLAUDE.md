@@ -36,10 +36,14 @@ vedle plánu, pravidla pro tasky v plánu („Pravidla pro každý task"). Pracu
 na větvi **`faze-2-frontend`**; `faze-1-demon` zůstává jako záchranná síť.
 Hotový **Task 1** — sada se odpoutala od buildu: testy indexu a assetů čtou
 fixture adresář, sada má **143 testů** a projde i bez `sysmon_app/web/` (tehdy
-se build-závislé piny přeskočí). **Další na řadě je Task 2:** skelet `frontend/`
-(Vite + React + TS) a build do `sysmon_app/web/`, který se od té doby
-necommituje. `frontend/` zatím **neexistuje** — do Tasku 2 je jediná závislost
-projektu pořád jen `psutil`.
+se build-závislé piny přeskočí). Hotový **Task 2** — `frontend/` (Vite 8.3.4 +
+React 19.3.1 + TS 5.9.3) se buildí do `sysmon_app/web/`, který je v
+`.gitignore`; stará kopie frontendu je z repa smazaná (`../sysmon` zůstává
+referencí). Build servíruje démon beze změny rout (`/`, `/static/*`), dev
+server proxyuje `/stats` a `/events` na 8430. **Další na řadě je Task 3:**
+cache hlavičky (immutable pro hashované assety, no-store pro index) a hlášení
+chybějícího buildu. Python závislost je pořád jen `psutil`; JS závislosti žijí
+jen ve `frontend/package.json` a lockfile se commituje.
 
 Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
 předlohu**,
@@ -56,8 +60,7 @@ rozsah končil tracebackem), a u Tasku 12 byla **rozbitá ukázka `config.toml`*
 kterou měl README učit (a ověření fáze 1 zůstalo jen v hlášení, ne v repu).
 Opsaný kód se recenzuje jako nový.
 
-Fáze 2–4 (React frontend, Tauri obal, balení a měření paměti) jsou zatím jen
-v návrhu.
+Fáze 3–4 (Tauri obal, balení a měření paměti) jsou zatím jen v návrhu.
 
 ## Jak se tady pracuje
 
@@ -253,6 +256,16 @@ Postup u jednoho tasku:
   nad celým dokumentem zapálí na běžné próze (` text only = 5 ` vypadá jako
   `on…=` atribut). Atributy se hledají **uvnitř značek** (`<[a-z][^>]*>`), ne
   v textu — jinak si pin vynutí přepisování nevinných slov místo kódu.
+- **Kontrola, která si URL skládá z grepu, musí ověřit, že URL vznikla.** Kostra
+  v Tasku 2 neměla žádný import CSS, takže Vite `.css` asset nevyrobil; smyčka
+  `url=$(… grep …); curl "localhost:8430$url"` s prázdnou URL poslala požadavek
+  na `/`, dostala `200 text/html` a vypsala „css -> 200“ — chybějící stylesheet
+  vypadal jako úspěch, přičemž kritérium „oba assety → 200“ platilo. Prázdný
+  výsledek grepu musí být tvrdá chyba a asset musí existovat ve výstupu buildu.
+- **`emptyOutDir` smaže i trackované soubory v cíli buildu.** Task 2 buildil do
+  `sysmon_app/web/`, kde ležela stará kopie frontendu; build ji smazal z disku
+  dřív, než přišlo `git rm`. Mazání z indexu proto musí být naistagované
+  **před** buildem, jinak „`git status` je po buildu čistý“ neplatí.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
@@ -266,9 +279,16 @@ python3 -m unittest tests.test_rates -v         # jeden modul
 python3 -m sysmon_app                           # démon na 8430 (--host/--port přebijí config)
 ```
 
-Závislost je **jen `psutil`** (`pacman -S python-psutil`). Žádný build step,
-žádný `pyproject.toml`, žádné závislosti navíc. Testy jsou stdlib `unittest` —
-pytest je vynechaný záměrně, aby projekt zůstal bez závislostí.
+Python závislost je **jen `psutil`** (`pacman -S python-psutil`). Žádný
+`pyproject.toml`, žádné Python závislosti navíc. Build step existuje jen ve
+`frontend/` (Vite); `sysmon_app/web/` se necommituje. Testy jsou stdlib
+`unittest` — pytest je vynechaný záměrně, aby Python strana zůstala bez
+závislostí.
+
+```bash
+cd frontend && npm ci && npm run build   # build do sysmon_app/web/
+cd frontend && npm run dev               # dev server s proxy na 8430
+```
 
 ## Architektura
 
@@ -282,7 +302,7 @@ Balíček `sysmon_app/`:
 | `monitor.py` | `Monitor.snapshot()` — kontrakt *(Task 7)* |
 | `server.py` | HTTP: SPA, `/stats`, `/events` (SSE) |
 | `__main__.py` | vstupní bod — `python3 -m sysmon_app` |
-| `web/` | dočasný frontend, kopie ze `sysmonu`; fáze 2 ho nahradí |
+| `web/` | build z `frontend/` (ignorovaný gitem); servíruje ho `server.py` |
 
 ### Jeden sběrný cyklus, ne jeden na klienta
 
