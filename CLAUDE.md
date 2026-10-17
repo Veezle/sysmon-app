@@ -102,7 +102,12 @@ Hotový **Task 4** — tray (SNI `Title="Sysmon"`, menu „Otevřít dashboard�
 „Ukončit“), zavření okna schová do traye a „Ukončit“ zastaví aplikaci
 i vlastněného démona; v prostředí bez StatusNotifier watchera se tray
 nevytvoří a zavření okna aplikaci ukončí; 13 testů, build bez warningů.
-**Další na řadě je Task 5:** autostart a `--hidden`.
+Hotový **Task 5** — autostart: první běh nabídne „Spouštět Sysmon při
+přihlášení?“ (Ano/Ne), „Ano“ zapíše `.desktop` s `--hidden` a marker
+zabrání opakování; `--hidden` startuje bez okna (bez traye se okno ukáže);
+dvouvrstvý escape cest ověřen GLibem, selhání zápisu marker nezapíše
+a nabídka se zopakuje; **33 testů**, build i clippy čisté.
+**Další na řadě je Task 6:** jedna instance.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 

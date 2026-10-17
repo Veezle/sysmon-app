@@ -37,7 +37,7 @@
     {
       "id": 4,
       "subject": "Task 5: Autostart a --hidden",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Prvni spusteni nabidne autostart, Ano zapise .desktop s --hidden, marker zabrani opakovani.\n\n**Files:**\n- src-tauri/src/autostart.rs\n- src-tauri/src/ui.rs\n- src-tauri/src/main.rs\n\n**Acceptance Criteria:**\n- unit testy cest, .desktop, quotingu, markeru a --hidden\n- prvni spusteni ukaze dialog\n- Ano zapise .desktop s --hidden\n- marker zabrani druhemu dialogu\n- --hidden startuje bez okna\n- relativni XDG se ignoruje\n\n**Verify:** cargo test --manifest-path src-tauri/Cargo.toml + rucni prvni beh s XDG_CONFIG_HOME\n\n```json:metadata\n{\"files\": [\"src-tauri/src/autostart.rs\", \"src-tauri/src/ui.rs\", \"src-tauri/src/main.rs\"], \"verifyCommand\": \"cargo test --manifest-path src-tauri/Cargo.toml + rucni prvni beh s XDG_CONFIG_HOME\", \"acceptanceCriteria\": [\"unit testy cest, .desktop, quotingu, markeru a --hidden\", \"prvni spusteni ukaze dialog\", \"Ano zapise .desktop s --hidden\", \"marker zabrani druhemu dialogu\", \"--hidden startuje bez okna\", \"relativni XDG se ignoruje\"]}\n```",
       "blockedBy": [
         3
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T19:15:00+02:00"
+  "lastUpdated": "2026-10-17T19:55:00+02:00"
 }
