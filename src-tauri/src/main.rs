@@ -10,6 +10,11 @@ fn main() {
     gtk::glib::set_prgname(Some("Sysmon"));
     let hidden = autostart::hidden_from_args(std::env::args());
     tauri::Builder::default()
+        // Musí být první: druhá instance se ptá dřív, než by se stihl
+        // zaregistrovat handler v `.setup()`.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            ui::show_main_window(app);
+        }))
         .setup(move |app| {
             let handle = loop {
                 match sidecar::ensure_daemon(app.handle().clone()) {
