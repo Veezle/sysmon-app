@@ -94,7 +94,10 @@ Vite build.
 **Files:**
 - Create: `tests/web_fixture.py`
 - Modify: `tests/test_server.py` (třídy `LoadStaticTest`, `LoadIndexTest`,
-  `StatsTest.test_static_assets_are_served_over_http`)
+  `StatsTest.test_static_assets_are_served_over_http`, a navíc
+  `StatsTest.test_index_is_served_at_root` — ten v předloze chyběl a bez jeho
+  úpravy kritérium „sada projde bez `web/`" neplatí, protože je to jediný test,
+  který čte `index.html` po drátě)
 
 **Acceptance Criteria:**
 - [ ] Sada projde i s přesunutým `sysmon_app/web/` (žádný test ho nepotřebuje)
@@ -316,6 +319,58 @@ Nove se po drate pinuje i vnorena cesta /static/assets/."
 
 ---
 
+> **Uzavření Tasku 1 (2026-10-17) — hotovo, tři commity:** `ffd8619` (sada se
+> odpoutala od buildu), `8cc9e17` (pin měří i produkt, mrtvé aserce pryč)
+> a `10f9636` (komentář u `data:`). Sada má **143 testů** (`test_server` 20)
+> a **projde i bez `sysmon_app/web/`** — tehdy se přeskočí jediný
+> build-závislý pin a výsledek je `OK (skipped=1)`, přesně jak má.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Předloha v `Files:` neuvedla `StatsTest.test_index_is_served_at_root`.**
+>   Bez jeho úpravy kritérium „sada projde bez `web/`" neplatí — je to jediný
+>   test, který čte `index.html` po drátě (naměřeno: `FileNotFoundError`).
+> - **`assertIsNone(load_static("../config.py"))` nic nepinuovalo** (`.py` není
+>   v allow-listu, takže `None` přijde dřív, než se řeší cesta; mutant bez
+>   kontroly `realpath` ho nechal projít). Smazáno, cestu pinuje `../secret.css`.
+> - **`test_rejects_disallowed_extension` byl mrtvý** — s otevřeným allow-listem
+>   prošel (soubory v repo `static/` nejsou, `None` přišel z chybějícího
+>   souboru). Smazán; jeho soused to dělá přísněji (vytváří soubory a má
+>   kladnou kontrolu).
+> - **Pin na inline kód měřil jen vlastní konstantu ve fixture.** Naměřeno:
+>   `javascript:` a `data:` odkazy ve fixture **přežily všech 141 testů**
+>   a mutant, kdy trasa `/` vůbec nezavolá `load_index()` a pošle konstantní
+>   HTML, taky. Oprava: sdílená funkce `check_no_executable_inline_code`,
+>   negativní kontrola `test_pin_fires_on_inline_script` (pin musí umět
+>   spadnout) a build-podmíněné dvojče
+>   `test_real_build_index_has_no_executable_inline_code` (`skipUnless`; dnes
+>   běží proti staré kopii ze `sysmonu`, po Tasku 2 poprvé změří skutečný build).
+>   `test_index_is_served_at_root` teď porovnává tělo **přesně** proti
+>   `server.load_index()`.
+> - **Fixture odkazovala na `index-def456.css`, který nikdy nevytvořila**, a nic
+>   nevázalo odkazy indexu na soubory. Oprava: `HASH` jako jeden zdroj pravdy,
+>   `fake_web` vytváří `.js` i `.css`, a nový
+>   `test_every_static_reference_in_index_is_served` stahuje **každý** odkaz
+>   pod `/static/` po drátě (dnes 3: ikona, `.js`, `.css`).
+> - **Wire test stavěl druhý server zbytečně** — `load_static` čte modulovou
+>   `STATIC_DIR` až v době volání, takže patch platí i pro server ze `setUp`
+>   (ověřeno: stejné mutanty zabity).
+>
+> **Vědomé meze:** `data:`/`javascript:` jsou v `src`/`href` zakázané záměrně;
+> **plánovaný** tvar indexu žádné `data:` nevyrobí (ikona jde přes `public/`,
+> root-absolutní odkazy se neinlinují; `link rel=icon/stylesheet/...` taky ne —
+> naměřeno na Vite 8.3.4), ale relativně odkazovaný drobný obrázek přes `<img>`
+> by Vite inlinoval. Kdyby pin na buildu zapálil, je to hlasité a vyšetřuje se
+> to — nerozšiřuje se pin. Skener značek utne značku na prvním `>` uvnitř
+> hodnoty atributu (není to well-formed HTML, prohlížeč se chová stejně).
+> Build-závislé piny se bez buildu přeskočí (vědomá mez, viz spec).
+>
+> **Poučení:** pin, který měří vlastní konstantu, neměří produkt — a bez
+> negativní kontroly je nerozeznatelný od žádného pinu. Aserce, kterou vyřídí
+> allow-list, nepinuje cestu. Skenovat se mají značky, ne text (próza
+> „ text only = 5 " vypadá jako `on…=`). Zapsáno v `CLAUDE.md`.
+
+---
+
 ### Task 2: Skelet frontendu a build do `sysmon_app/web/`
 
 **Goal:** `frontend/` s Vite + React + TS, který se buildí do `sysmon_app/web/`;
@@ -358,22 +413,27 @@ dnešní kopie frontendu se z repa smaže.
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@types/react": "18.3.12",
-    "@types/react-dom": "18.3.1",
-    "@vitejs/plugin-react": "4.3.4",
-    "typescript": "5.6.3",
-    "vite": "5.4.11"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
   }
 }
 ```
 
 Verze jsou záměrně zafixované (žádné `^`): `npm ci` musí být reprodukovatelné.
-Kdyby některá neexistovala, `npm install` to řekne hlasitě — pak zvol
-nejbližší vyšší a **zapiš to do hlášení**.
+Vybrané **2026-10-17** dotazem na registry (rozhodnutí: aktuální stable majors):
+`vite@8.3.4`, `react@19.3.1`, `@vitejs/plugin-react@6.1.2`, `@types/*@19.3.0`.
+**TypeScript zůstává na poslední 5.x (`5.9.3`)** — `7.0.2` je první vydání
+přepsaného překladače a `npm run typecheck` je u nás pin kontraktu, takže na
+něm nechceme ladit. Vite 8 vyžaduje Node `^20.19` nebo `>=22.12`; na stroji je
+**22.23.2** (ověřeno). Kdyby některá verze neexistovala, `npm ci` to řekne
+hlasitě — pak zvol nejbližší vyšší a **zapiš to do hlášení**.
 
 - [ ] **Step 2: `frontend/tsconfig.json`**
 

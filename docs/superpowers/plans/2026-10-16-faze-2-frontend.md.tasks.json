@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: Sada se odpoutá od buildu",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Testy indexu a assetů čtou fixture adresář místo repo `web/`, takže sada projde i v čerstvém klonu bez buildu; piny na index se přeformulují pro Vite build.\n\n**Files:**\n- Create `tests/web_fixture.py`\n- Modify `tests/test_server.py`\n\n**Acceptance Criteria:**\n- [ ] sada projde i s přesunutým `sysmon_app/web/`\n- [ ] index/static testy čtou fixture přes `mock.patch.object`\n- [ ] pin na index zakazuje spustitelný inline kód (tělo `<script>`, `on…=`), case-insensitive\n- [ ] `/static/assets/index-<hash>.js` jde stáhnout po drátě z fixture\n\n**Verify:** `python3 -m unittest discover -s tests -t .` → OK (i s `mv sysmon_app/web /tmp/web-off`)\n\n```json:metadata\n{\"files\": [\"tests/web_fixture.py\", \"tests/test_server.py\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"sada projde bez web/\", \"fixture místo buildu\", \"pin na spustitelný inline kód\", \"asset v podadresáři po drátě\"]}\n```"
     },
     {
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-16T23:21:58+02:00"
+  "lastUpdated": "2026-10-17T00:15:59+02:00"
 }
