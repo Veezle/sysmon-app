@@ -7,7 +7,10 @@ dovolit. Predstira se jen vyjimka, aby slo overit, ze ji Monitor spolkne.
 
 import copy
 import itertools
+import json
+import os
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -22,6 +25,67 @@ ALWAYS_PRESENT = (
     "processes", "system", "gpu", "battery", "battery_history", "net",
     "services", "containers",
 )
+
+# Fixture pro frontendove typy. Generuje ji tenhle soubor a porovnava ji s tim,
+# co lezi na disku - rucni editace ani tichy drift neprojdou.
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "snapshot.json"
+
+
+def stable_snapshot():
+    """Snapshot pro frontendovou fixture: stejny tvar jako kontrakt, ale
+    zmrazene hodnoty.
+
+    Zadne realne casy, procenta ani PIDy - jinak by fixture zestarnala pri
+    kazdem behu. `loadavg: None` a chybejici `nvme_temp` jsou zamerne
+    degradovane pripady; `gpu.util`, `net.total_up` a `containers.groups`
+    pinuji pole, na kterych planova kostra lhala.
+    """
+    return {
+        "host": "stroj",
+        "user": "clovek",
+        "cpu": 12.5,
+        "cpu_cores": [1.0, 2.0, 3.0, 4.0],
+        "cpu_temp": 55.0,
+        "mem": {"percent": 50.0, "used": 500, "total": 1000},
+        "swap": {"percent": 0.0, "used": 0, "total": 1000},
+        "loadavg": None,
+        "disk": {
+            "available": True, "percent": 66.0, "used": 100, "total": 200,
+            "read_rate": 0.0, "write_rate": 0.0,
+        },
+        "processes": [{"pid": 1, "name": "init", "cpu": 1.0, "mem": 10}],
+        "system": {"kernel": "6.0", "uptime_seconds": 3600},
+        "gpu": {
+            "available": True, "vendor": "NVIDIA", "util": 10.0,
+            "mem_used": 100.0, "mem_total": 1000.0, "temp": 50.0,
+        },
+        "battery": {
+            "available": True, "percent": 80, "status": "Discharging",
+            "status_label": "Vybíjí se", "ac_online": False,
+            "time_remaining_minutes": None,
+        },
+        "battery_history": [{"t": 0, "v": 80}, {"t": 120, "v": 79}],
+        "net": {"up": 0.0, "down": 0.0, "total_up": 1, "total_recv": 2},
+        "services": [{"port": 22, "label": "SSH", "on": True}],
+        "containers": {
+            "available": True,
+            "error": None,
+            "groups": {
+                "projekt": [{
+                    "ID": "abc123",
+                    "Names": "web",
+                    "Image": "nginx",
+                    "State": "running",
+                    "Status": "Up 2 hours",
+                    "Labels": "com.docker.compose.project=projekt",
+                    "Ports": "0.0.0.0:80->80/tcp",
+                    "cpu": "1.5%",
+                    "memory": "10MiB / 1GiB",
+                    "memory_percent": "0.98%",
+                }],
+            },
+        },
+    }
 
 # Hodnota je (atribut na Monitoru, nebo None pro funkci v modulu, jmeno).
 COLLECTOR_CALLS = {
@@ -267,6 +331,38 @@ class SnapshotContractTest(unittest.TestCase):
                         return_value=fake) as procs:
             self.assertEqual(monitor.snapshot()["processes"], fake)
         procs.assert_called_once_with(TOP_PROCESSES_N)
+
+
+class FrontendFixtureTest(unittest.TestCase):
+    """Fixture pro TypeScript typy - klice hlida Python, tvary TypeScript.
+
+    `snapshot.contract.ts` ve frontendu porovnava fixture s interface pres
+    `satisfies`: chybejici povinny klic nebo jiny typ hodnoty spadne pri
+    `npm run typecheck`. Opacny smer (extra klic v JSON) TypeScript nehlida,
+    proto klicovou sadu pinuje tenhle test.
+
+    `UPDATE_FIXTURE=1` je jedina cesta, jak fixture pregenerovat - rucni
+    editace test shodi, protoze se porovnava obsah na disku s generovanym.
+    """
+
+    def test_fixture_has_the_same_keys_as_contract(self):
+        contract_keys = set(self.contract_keys())
+        self.assertEqual(set(stable_snapshot()), contract_keys)
+
+    def test_file_on_disk_matches_generated(self):
+        text = json.dumps(stable_snapshot(), ensure_ascii=False,
+                          indent=2, sort_keys=True) + "\n"
+        if os.environ.get("UPDATE_FIXTURE") == "1":
+            FIXTURE.parent.mkdir(parents=True, exist_ok=True)
+            FIXTURE.write_text(text, encoding="utf-8")
+            self.skipTest("fixture pregenerovana (UPDATE_FIXTURE=1)")
+        self.assertTrue(FIXTURE.exists(), f"chybí {FIXTURE}; spusť s UPDATE_FIXTURE=1")
+        self.assertEqual(FIXTURE.read_text(encoding="utf-8"), text,
+                         "fixture zestárla - spusť s UPDATE_FIXTURE=1")
+
+    def contract_keys(self):
+        """Klice kontraktu - z tabulky, kterou pinuje kontraktni test vyse."""
+        return set(ALWAYS_PRESENT) | {"cpu_temp"}
 
 
 if __name__ == "__main__":

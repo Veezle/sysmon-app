@@ -1,0 +1,102 @@
+{
+  "battery": {
+    "ac_online": false,
+    "available": true,
+    "percent": 80,
+    "status": "Discharging",
+    "status_label": "Vybíjí se",
+    "time_remaining_minutes": null
+  },
+  "battery_history": [
+    {
+      "t": 0,
+      "v": 80
+    },
+    {
+      "t": 120,
+      "v": 79
+    }
+  ],
+  "containers": {
+    "available": true,
+    "error": null,
+    "groups": {
+      "projekt": [
+        {
+          "ID": "abc123",
+          "Image": "nginx",
+          "Labels": "com.docker.compose.project=projekt",
+          "Names": "web",
+          "Ports": "0.0.0.0:80->80/tcp",
+          "State": "running",
+          "Status": "Up 2 hours",
+          "cpu": "1.5%",
+          "memory": "10MiB / 1GiB",
+          "memory_percent": "0.98%"
+        }
+      ]
+    }
+  },
+  "cpu": 12.5,
+  "cpu_cores": [
+    1.0,
+    2.0,
+    3.0,
+    4.0
+  ],
+  "cpu_temp": 55.0,
+  "disk": {
+    "available": true,
+    "percent": 66.0,
+    "read_rate": 0.0,
+    "total": 200,
+    "used": 100,
+    "write_rate": 0.0
+  },
+  "gpu": {
+    "available": true,
+    "mem_total": 1000.0,
+    "mem_used": 100.0,
+    "temp": 50.0,
+    "util": 10.0,
+    "vendor": "NVIDIA"
+  },
+  "host": "stroj",
+  "loadavg": null,
+  "mem": {
+    "percent": 50.0,
+    "total": 1000,
+    "used": 500
+  },
+  "net": {
+    "down": 0.0,
+    "total_recv": 2,
+    "total_up": 1,
+    "up": 0.0
+  },
+  "processes": [
+    {
+      "cpu": 1.0,
+      "mem": 10,
+      "name": "init",
+      "pid": 1
+    }
+  ],
+  "services": [
+    {
+      "label": "SSH",
+      "on": true,
+      "port": 22
+    }
+  ],
+  "swap": {
+    "percent": 0.0,
+    "total": 1000,
+    "used": 0
+  },
+  "system": {
+    "kernel": "6.0",
+    "uptime_seconds": 3600
+  },
+  "user": "clovek"
+}
