@@ -4,3 +4,4 @@ node_modules/
 sysmon_app/web/
 src-tauri/target/
 src-tauri/gen/
+STOP

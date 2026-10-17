@@ -1,0 +1,299 @@
+# Poučení z recenzí
+
+Čtou recenzenti, ne implementátor.
+
+**Co se osvědčilo:**
+
+- U **přenosových** tasků (2, 3, 5, 6) stačí jedno kolo recenzí. Tam, kde se mění
+  tvar nebo přidává logika (1, 4), se vyplatí počítat s víc.
+- Model: mechanická kopie zvládne levný model, recenze a integrace potřebují
+  silnější.
+- Recenzenti mají dostat **konkrétní seznam tvrzení k vyvrácení**, ne „zkontroluj
+  to". Nejcennější nálezy vznikly tak, že recenzent něco přeměřil, přepsal nebo
+  zfalšoval a tvrzení vyvrátil — ne že si kód přečetl.
+- **Vzorec, na který se vyplatí čekat:** „tohle bylo v pořádku, dokud byla
+  konfigurace naše; teď je uživatelova, a je to bug." Tak se našly `KNOWN_PORTS`
+  i překryv `watch_ports` s `ignored_ports`. Přenos ze `sysmonu` nese předpoklady
+  platné jen pro jeden stroj.
+- **Falešný vstup musí umět selhat stejně jako skutečný.** Fixtura baterie
+  psala hodnoty bez koncového `\n` a modelovala jediné AC napájení, takže
+  obrany v kódu (`strip()`, slévání zdrojů přes `or`) nebyly nikdy zatížené
+  a mutanty procházely. Otázka k čekání: „co na tomhle stroji vypadá jinak než
+  ve fixtuře?" — v Tasku 5 to bylo `\n` a tři napájecí zdroje místo jednoho.
+- **Když obal polyká výjimky, jméno se v něm nesmí vyhodnocovat.** `_safe(lambda:
+  get_top_processes(...), …)` v `Monitoru` spolkne i `NameError` z překlepu:
+  karta zůstane prázdná navždy a sada je zelená. `functools.partial` vyhodnotí
+  jméno v argumentu, tedy mimo obal, a překlep je hlasitý (31 chyb). Totéž
+  platí pro tabulku náhradních tvarů klíčovanou jmény — nic ji s klíči neváže,
+  takže `loadavg` s `{}` projde testy a rozbije render.
+- **`assertIs` nepinuje nezměněnost.** Test na identitu objektu vypadá, že brání
+  přepsání sdíleného stavu, ale propustí právě to: `Monitor` může `groups`
+  otraviť na místě a `assertIs` projde, protože je to pořád týž objekt — a naopak
+  shodí neškodný `deepcopy`. Kde je nebezpečím modifikace, pinuje se **obsah**
+  (kopie před voláním + `assertEqual`), ne identita. Naměřeno v Tasku 7b: obě
+  asserce zabíjejí jinou mutantu, každá sama je poloviční.
+- **Test, jehož smyčku ukončuje mock, se při mutantovi zacyklí místo aby spadl.**
+  Když `_loop` končí jen výjimkou z podstrčeného `time.sleep`, mutant bez spánku
+  sadu roztočí navěky (`timeout` místo `FAILED`) — a visící test vypadá jako
+  běžící. Terminátor patří na volání uvnitř těla a musí to být `BaseException`
+  (`SystemExit`), protože `except Exception` ho nespolkne; spánek se pinuje
+  zvlášť. Záložní brzda z mockovaného spánku funguje jen proto, že `sleep` leží
+  vně `try` — přesun dovnitř z ní udělá věčné točení.
+- **Test, který pinuje obsah, nepinuje vlastnost.** `assertEqual(snapshot["n"], 2)`
+  projde i proti mutantovi, který odběratele neprobudí (`wait_for` se dobere po
+  timeoutu a vrátí správná data), i proti mutantovi se dvěma sběry za tik. Široký
+  timeout to schová: `interval=0.01` proti `timeout=5` je 500× rezerva, takže
+  časový pin nic neměří. Kde kritérium říká „hned" nebo „jakmile", patří do testu
+  `assertLess` s prahem blízkým pinované veličině — a **vazba na tu veličinu se má
+  tvrdit**: v Tasku 8 piny držely, jen dokud bylo `TICK_SEC` vyrazně nad prahem,
+  a při jeho zkrácení se tiše vypnuly (odhaleno až měřením s jinou hodnotou).
+- **Předloha v plánu je výchozí bod, ne spec.** Tasky 7b, 8 i 9 měly v plánu
+  hotový kód, a všechny tři předlohy nepinovaly, co slibovaly — u Tasku 8 přežilo
+  dvanáct mutovaných vlastností, u Tasku 9 sedm (dvě z nich přitom porušovaly
+  acceptance kritéria). Recenzent se proto nemá ptát „odpovídá to zadání?", ale
+  **„které kritérium to vlastně pinuje?"** — a měřit to mutantami, ne čtením.
+- **Recenzní smyčka se musí zastavit.** Task 8 měl tři kola recenzí a čtyři
+  opravné commity; poslední kola už přinášela jednořádkovky. Stop pravidlo, které
+  se osvědčilo: poslední kolo ověřuje **jen deltu**, opravují se **jen blokující**
+  nálezy a všechno ostatní se zapíše do plánu jako vědomá mez. Bez toho se smyčka
+  nezastaví, protože každé kolo něco najde.
+- **Test, který neteče po drátě, nepinuje trasu.** V Tasku 9 volaly všechny testy
+  `/static/` jen `load_static()` napřímo, takže sada zůstala zelená i s přejmenovaným
+  prefixem, s rozbitým odřezem cesty a s trasou, která asset **nikdy nepošle** —
+  a stránka se přitom načetla bez CSS i bez JS, prázdná. Jednotková pojistka
+  (`realpath`, allow-list) byla naměřeně nosná; chyběl pin na to, co produkt
+  skutečně dělá. Otázka: **stahuje to test po drátě, nebo jen volá funkci, kterou
+  trasa používá?** Totéž platí pro vstupy, které prohlížeč normalizuje: názvy HTML
+  značek jsou case-insensitive, takže `assertNotIn("<script>", index)` a
+  `re.findall` bez `re.I` nechaly projít `<SCRIPT>alert(1)</SCRIPT>` — pin vypadal,
+  že brání vkládání kódu, a přitom ho pustil.
+- **Stav na třídě handleru je stav celého procesu, ne serveru.** Předloha Tasku 9
+  věšela `monitor`/`feed` na třídu `Handler`, a to ještě **před** bindem. Naměřeno:
+  druhé `serve()` na obsazeném portu (scénář Tasku 11) přepsalo stav serveru, který
+  už běžel, a ten pak odpovídal cizími daty. Vypadá to jako neměnná konfigurace
+  procesu; je to ale stav, který patří instanci — a test, který oba servery staví,
+  to odhalí jen tehdy, když je v obou něco k vidění (prázdný feed spadne do
+  fallbacku a rozdíl se schová).
+- **Obal, který má výjimku spolknout, musí začít před hlavičkami.** V Tasku 10
+  začínalo `try:` až za `end_headers()`, takže `ConnectionResetError` z hlaviček
+  vyletělo do `socketserver.handle_error` a nechalo na stderr traceback —
+  naměřeno **394 z 400** spojení, když klient poslal `GET` a hned RST, a to
+  i přesto, že komentář o tři řádky níž sliboval opak. Test, který si odpověď
+  **nejdřív přečte**, to okno nikdy netrefí (0 z 400) — proto to předchozí testy
+  neviděly. Okno se pinuje tak, že klient pošle požadavek a **hned** zavře
+  (RST přes `SO_LINGER 0`), bez čtení, a `handle_error` se podstrčí.
+- **Pinuj vazbu, ne naměřenou latenci.** Keep-alive v Tasku 10 se pinoval
+  wall-clock oknem kolem `SSE_KEEPALIVE_SEC`. Jenže horní mez je měření na
+  **klientovi** a pod vyhladověním CPU roste bez hranice — naměřeno **1,37×–2,49×**
+  podstrčené hodnoty (`nice -n 19` proti procesům na `nice 0`), takže test padal
+  falešně (12 běhů: 4 selhání s oknem `(0.8k, 1.25k)`, 1 s `(0.5k, 1.6k)`).
+  Rozšířit ho přitom nejde: aby zůstal zabitý mutant s napevno zadrátovaným
+  timeoutem, musí horní mez zůstat pod ním. Řešení: podstrčit volanou funkci
+  obalem, který si poznamená **argument**, a tvrdit rovnost s konstantou. Je to
+  přísnější (zabilo i `k*1.5`, které okno pouštělo) a nezávislé na plánování
+  (10/10 pod zátěží, kde okno padalo). Obecně: **kde jde pinovat argument místo
+  následku, pinuj argument** — čas je šum, hodnota ne.
+- **Chunk framing není event framing.** Testy Tasku 10 pinovaly chunk (hex
+  velikost + CRLF), ale ne obálku události `data: …\n\n` — mutant, který pošle
+  jen jedno `\n`, prošel **všemi 120 testy**, a přitom by `EventSource`
+  nevyvolal ani jednu událost. Když test skládá rámec z prefixu a parsovaného
+  obsahu, kontroluj i **oddělovač**: přesně tam se ta chyba schová.
+- **Měření na izolované funkci není měření produktu.** Předletová kontrola pro
+  Task 11 tvrdila (a já ji tak zapsal do plánu), že `feed.stop()` ukončí otevřené
+  SSE proudy čistě — „naměřeno curlem, `exit 0`". Měření ale běželo na handleru
+  v **izolaci, s procesem, který žil dál**; na skutečné výstupní cestě démona se
+  proud usekne (`curl` rc 18, ukoncovací chunk nedorazí, 5/5 běhů), protože
+  `sys.exit` zabije daemon vlákna handlerů. Než něco prohlásím za změřené, ptám
+  se: **běželo to na té cestě, kterou používá produkt, nebo jen na té funkci?**
+  Do plánu patří jen to druhé jako „změřeno v izolaci".
+- **`server_close()` na daemon vlákna nečeká — a „zjevná oprava" je past.**
+  `ThreadingMixIn._Threads.append` daemon vlákna **zahazuje**, takže `_threads`
+  zůstane prázdné a `server_close()` se vrátí za 0,000 s i s handlerem
+  zaseknutým v zápisu (naměřeno). Přepnout `daemon_threads` na `False` join
+  zapne — a `Ctrl+C` pak neukončí proces, protože handler zaseknutý u odběratele,
+  který nečte, visí neomezeně (>60 s, naměřeno). Když ukončení démona potřebuje
+  milost, musí být **ohraničená deadline**, ne `join` bez ní.
+- **Dvě pasti v měřicím harnessu, které vypadají jako nález.** (a) Kopíruješ-li
+  repo do `/tmp` a mutuješ **řádky** (ne tvar), smaž `__pycache__` a použij
+  `PYTHONDONTWRITEBYTECODE=1` — mutant se stejnou velikostí souboru si vezme
+  zastaralý `.pyc` a „přežije", i když je zabitý (naměřeno u mutantu, který jen
+  prohazoval pořadí). (b) Substring aserce propustí víc, než si myslíš:
+  `assertIn("konec", stdout)` přežije i `konecX`; kde jde o text hlášky, pinuj
+  přesnou hodnotu.
+- **Ukázka z dokumentace se ověřuje extrakcí ze souboru, ne přepisem.** Naivní
+  „ber odsazené řádky, dokud to jde" se v Tasku 12 zastavilo na **prázdném řádku
+  uvnitř bloku** a vrátilo podvýřez `config.toml` bez `[watch_ports]` — tedy bez
+  přesně toho místa, kde chyba byla, a takový výřez projde. Kdo opisuje správnou
+  verzi ručně, stejně tak nedokáže nic: dokument a realita se rozejdou znovu.
+- **Tvrzení o chování frontendu se ověřuje i v cestě, kterou dokumentace sama
+  nabízí.** V Tasku 12 byla výchozí cesta (bez tokenu) pravdivá a ležela ta
+  druhá: README citoval hlášku odkazující na `?token=…`, takže čtenář, který ji
+  poslechne, pošle POST (`captureToken()` token z URL vezme) a dostane syrovou
+  `SyntaxError` místo slibovaného „nic se nestane". Věty typu „to se nikdy
+  neodešle" potřebují pin i na okrajový vstup, který sám dokument zmiňuje.
+- **Když task slibuje „ověřit", musí ověření skončit v repu.** Task 12 měl za cíl
+  ověřit, že démon dává stejná data jako `sysmon`; kdyby ta čísla zůstala jen
+  v hlášení subagenta, nedá se z repa zjistit, co a kdy se měřilo. Naměřené
+  hodnoty patří do uzavření tasku v plánu.
+- **`kill -INT` na proces z neinteraktivního shellu je tichý no-op.** Bash dá
+  background úloze (bez job control) `SIGINT` i `SIGQUIT` na **ignorováno**
+  a Python zděděné `SIG_IGN` neruší — vlastní handler pro `SIGINT` si
+  nenainstaluje. Naměřeno při ověřování mergi Tasku 12: `python3 -m sysmon_app`
+  spuštěný jako `(setsid nohup … &)` měl v `/proc/PID/status` `SigIgn` s bitem
+  pro SIGINT, takže „Ctrl+C démona neukončí" vypadalo jako nález, ačkoli šlo
+  o měření. Kdo ukončení měří signálem, ať si **nejdřív přečte
+  `/proc/PID/status`**, nebo proces spustí pod pty (`script -qec "…" /dev/null`);
+  pod pty naměřeno: `SIGINT` → `konec`, `COMMAND_EXIT_CODE=0`, port uvolněný.
+- **Pin, který měří vlastní konstantu, neměří produkt.** V Tasku 1 fáze 2
+  kontroloval pin na `index.html` čtyři vlastnosti **fixture, kterou si test sám
+  napsal** — a nic víc; mutant, kdy trasa `/` vůbec nezavolá `load_index()`
+  a pošle konstantní HTML, přežil **všech 141 testů**. Co chybělo: dvojče pinu
+  nad **skutečným buildem** (`skipUnless` na existenci `web/index.html`)
+  a **negativní kontrola**, že pin umí spadnout (`test_pin_fires_on_inline_script`)
+  — bez ní je pin, který nikdy nezapálí, nerozeznatelný od žádného pinu.
+  Otázka pro každý nový pin: **kterou mutantu by zabil?** Když žádnou, měří sebe.
+- **Když aserci vyřídí allow-list, cesta zůstane nepinovaná.** `assertIsNone(
+  load_static("../config.py"))` projde i s implementací, která kontrolu cesty
+  **vůbec nemá** — `.py` není v allow-listu přípon, takže `None` přijde dřív, než
+  se na cestu někdo podívá (naměřeno mutantem). Pin na cestu musí mířit na
+  soubor, který **existuje a má povolenou příponu**; jinak se dvakrát testuje
+  allow-list a cesta nikdy. Platí to i na testy, které vypadají, že „něco
+  kontrolují", protože vracejí `None`.
+- **Skener pinuje jen to, co skener opravdu vidí.** `re.findall(r"\son[a-z]+\s*=")`
+  nad celým dokumentem zapálí na běžné próze (` text only = 5 ` vypadá jako
+  `on…=` atribut). Atributy se hledají **uvnitř značek** (`<[a-z][^>]*>`), ne
+  v textu — jinak si pin vynutí přepisování nevinných slov místo kódu.
+- **Kontrola, která si URL skládá z grepu, musí ověřit, že URL vznikla.** Kostra
+  v Tasku 2 neměla žádný import CSS, takže Vite `.css` asset nevyrobil; smyčka
+  `url=$(… grep …); curl "localhost:8430$url"` s prázdnou URL poslala požadavek
+  na `/`, dostala `200 text/html` a vypsala „css -> 200“ — chybějící stylesheet
+  vypadal jako úspěch, přičemž kritérium „oba assety → 200“ platilo. Prázdný
+  výsledek grepu musí být tvrdá chyba a asset musí existovat ve výstupu buildu.
+- **`emptyOutDir` smaže i trackované soubory v cíli buildu.** Task 2 buildil do
+  `sysmon_app/web/`, kde ležela stará kopie frontendu; build ji smazal z disku
+  dřív, než přišlo `git rm`. Mazání z indexu proto musí být naistagované
+  **před** buildem, jinak „`git status` je po buildu čistý“ neplatí.
+- **Vstupní brána v `main()` je stav celé testovací sady.** Jakmile `main()`
+  začne odmítat start (v Tasku 3 `load_index() is None → rc 2`), každý test,
+  který `main()` volá, musí bránu izolovat fixture: `MainTestCase.setUp`
+  podstrčí `WEB_DIR` s `index.html`, podproces patchuje `load_index`. Jinak se
+  zelená sada rozpadne jen na stroji bez buildu — naměřeno 11 selhání, zatímco
+  s buildem bylo vše OK.
+- **Cache rozhodnutí podle syrové URL cesty jde obejít.** `cache_for` testoval
+  `name.startswith("assets/")`, takže `/static/assets/../icon.svg` dostal
+  `immutable`, ačkoli je to nehashovaná ikona, která má mít `no-store`.
+  `os.path.normpath` před rozhodnutím a pin na dot-segment variantu; testy
+  běžných cest to nevidí.
+- **Nepřečtené tělo odpovědi dělá z keep-alive RST traceback.** Test, který
+  přečte jen status/hlavičky a zavře spojení, nechá v bufferu tělo;
+  `conn.close()` pošle RST, server v keep-alive skončí `ConnectionResetError`
+  a `socketserver` vytiskne traceback — sada přitom hlásí OK. Tělo se musí
+  přečíst, i když ho test nepotřebuje; jinak pin na „žádný traceback“ nic
+  neříká.
+- **Kontrakt na dvou jazycích se pinuje ze dvou stran.** Python pinuje
+  klíčovou sadu a stabilitu fixture, TypeScript tvary. `satisfies` ale
+  nehlídá extra klíče JSON ani názvy **volitelných** polí: přejmenování
+  `util`→`percent` projde, protože starý klíč je „extra“ a nový je volitelný
+  a chybí. Proto `keyof` assertiony pro pole, která UI používá, a degradovaný
+  vzorek (fallbacky), který pinuje volitelnost. Naměřeno v Tasku 4: bez nich
+  prošly čtyři přejmenování i tři „zesílení“ volitelného pole na povinné.
+- **Kostra typů v plánu není spec.** Task 4 kostra měla `percent` místo
+  `util`, `total_sent` místo `total_up`, `mem.available`, a
+  `containers: {groups: [], running}` místo objektu skupin. Tvary se berou
+  z kolektorů a `Monitor.snapshot()`, ne z názvů klíčů; jeden `satisfies` nad
+  živým i degradovaným snapshotem to odhalí.
+- **Fixture generovaná kódem musí být stabilní a přegenerovatelná jen
+  explicitně.** `UPDATE_FIXTURE=1` je jediná cesta; ruční editace musí test
+  shodit. Hash před/po přegenerování musí sedět, jinak fixture závisí na
+  stroji nebo čase a tiše zestárne.
+- **Fallback, který při pollu posouvá stale timestamp, polluje každých
+  `STALE_MS`.** V Tasku 5 posouval `take()` „čas posledního rámce“ i při poll
+  odpovědi, takže po prvním pollu se další odložil o 4,5 s místo 1,5 s
+  (naměřeno 6,0 s vs 1,5 s). Stale timestamp se smí posouvat **jen při SSE
+  rámci**; polling ho nesmí měnit, jinak se cadence tiše zpomalí.
+- **Staleness na monotónním čase a `live:false` při vypršení.** `Date.now()`
+  a posun hodin zpět (−5 min) fallback vypnul (polling 3 → 3); `performance.now()`
+  ho nechal běžet (3 → 8). A `live:false` se musí nastavit už při vypršení
+  staleness, ne až při úspěšném pollu — jinak mrtvý proud se selhávajícím
+  pollem ukazuje „SSE“ a zamrzlá čísla (naměřeno 8,2 s i 13,2 s).
+- **`--virtual-time-budget` proti otevřenému SSE visí.** Chrome čeká na
+  otevřený fetch, takže živý proud s tímto flagem nedumpne DOM (`rc=124`);
+  mrtvá SSE větev flagem projde. Živá data se měří CDP v reálném čase, ne
+  virtual-time budgetem.
+- **CSS, které počítá s přímými potomky `body`, se pod React mount pointem
+  tiše rozbije.** V Tasku 6 je mřížka na `body` a Vite přidává `#root`; ten se
+  stal jediným grid itemem, takže karty byly 1/12 široké (naměřeno: topbar
+  1340 → 97 px po přepnutí `#root` na `block`). `display: contents` na mount
+  pointu to vyřeší **bez zásahu do portovaného CSS** — kde je CSS 1:1
+  kritérium, je to jediná cesta. Otázka: **kdo je rodič grid itemů — `body`,
+  nebo mount point?**
+- **„Karty se nepřebudovávají“ se měří mutacemi a identitou uzlů, ne `memo`.**
+  Snapshot z `JSON.parse` má každý tik nové objekty, takže shallow compare
+  `memo` neprojde a karty se re-renderují — a přesto je DOM stabilní (Task 6:
+  0 childList mutací za 6 s živého SSE, tytéž `.core`). Přítomnost `memo`
+  v kódu ani počet renderů nic nedokazují; pin patří na DOM.
+- **Screenshot se srovnává při přirozené výšce obsahu.** `body` grid s
+  `min-height:100vh` roztahuje řádky (`align-content: stretch`), takže táž
+  stránka s málo kartami vypadá na 1400×1200 jinak než na přirozené výšce;
+  v Tasku 6 to byl rozdíl ~7 px na topbaru a vypadalo to jako regrese portu.
+  Geometrie se měří na snímku s `captureBeyondViewport`, ne na roztahaném
+  viewportu.
+- **Klíč „překresli jen při změně dat“ musí obsahovat hodnoty, ne jen délku
+  a čas.** Graf baterie v Tasku 7 měl klíč `délka | poslední t | velikost`;
+  backend posílá `t` relativní k prvnímu vzorku, takže po naplnění okna
+  (720 vzorků) zůstala délka i poslední `t` konstantní a měnila se jen `v` —
+  graf po ~24 h **tiše zamrzl**. Vada byla zděděná z `sysmonu` a port ji
+  převzal; oprava přidala do klíče podpis hodnot (`Math.imul`). Otázka na
+  každý cache klíč: **která změna dat ho nezmění?**
+- **Port přebírá i vady předlohy.** „V sysmonu to fungovalo“ není důkaz
+  správnosti — u grafu baterie se vada projevila až po 24 h běhu, což žádný
+  krátký test ani screenshot neukáže. Recenze se má ptát, jak se tvar dat
+  **mění v čase** (append-only okno, rotace deque), ne jen jak vypadá teď.
+- **Prázdný seznam může znamenat „nic se nesleduje“, ne „všechno je dole“.**
+  V Tasku 8 se `services === []` čte jako „Nesleduji žádné porty“ s `#svc-count`
+  = „—“, protože `get_services()` vrací položku i pro offline port — nula
+  položek tedy znamená prázdnou konfiguraci, ne výpadek. Před hláškou
+  o výpadku je nutné zjistit, co zdroj dat vrací pro **existující, ale
+  neběžící** položku.
+- **Pořadí objektu přes JSON není spolehlivé pro celočíselné klíče.** Python
+  pošle skupiny seřazené (`"10"` před `"2"`), ale `Object.keys` v JS vytáhne
+  celočíselné klíče dopředu a seřadí je numericky (`"2"` před `"10"`).
+  Když UI závisí na pořadí ze serveru, musí výjimku vynutit explicitně;
+  u Dockeru se navíc `"Ostatní"` posouvá na konec. Otázka: **které klíče
+  JSONu projdou `JSON.parse` beze změny pořadí?**
+- **Duplicate React key je v produkci tichý.** Warning se objeví jen v dev
+  buildu; fallback key musí být neprázdný i pro tvar, který kolektor „nikdy“
+  nevydá. V Tasku 8 by kontejner bez `Names` i `ID` dal `"projekt::"`, a dva
+  takové by splynuly. Dev build je pro takové scénáře levnější než produkční.
+- **Pin, který porovnává dva samostatné běhy prohlížeče, nepinuje
+  aktualizaci.** Fallback pin v Tasku 9 porovnal `dump_dom(4000)` proti
+  `dump_dom(20000)`; počítadlo dalo každé stránce jinou hodnotu už při
+  **prvním** fetchi, takže test prošel i s vypnutým pollingem
+  (`first=1 later=2`, 0 pollů). Aktualizace se měří v **jednom načtení**:
+  `first`/`later` a počet requestů ve stejném harnessu. Otázka: **kolik
+  načtení test potřebuje, aby mohl tvrdit „aktualizuje se“?**
+- **Nula mutací při nula ticích je planý pin.** Rebuild pin by prošel i na
+  frontendu, který se po prvním vykreslení zastaví. Harness proto počítá
+  `/stats` requesty a test vyžaduje minimum (naměřeno 78, práh 50).
+  Kritérium „po N ticích“ musí mít v testu pin i na **počet tiků**, ne jen
+  na jejich následek.
+- **Důkaz „pin měří“ musí mířit na revizi, která vadu má.** Kritérium Tasku 9
+  chtělo pustit rebuild pin proti dnešnímu `sysmon`; ten ale mezitím dostal
+  paměťovou opravu (`ea50030`), takže pin projde (`mutations=0`). Proti
+  `ea50030^` naměřeno **880** mutací. Když se referenční strom opraví,
+  doslovné kritérium je nesplnitelné — do uzavření patří čísla proti
+  `revize^`, ne tvrzení.
+- **„Hotovo“ v README musí odpovídat trackeru i definici hotového.** Task 10
+  napsal „fáze 2 hotové“, ale Task 11 (end-to-end ověření) byl `pending`
+  a design spec podmiňoval dokončení právě jím — tvrzení šlo z repa vyvrátit.
+  Formulace „implementovaná; zbývá závěrečné ověření“ je bezpečná; po
+  ověření se má status vrátit na „hotová“. Otázka: **co v tomhle repu
+  znamená „hotovo“ a kde je to napsané?**
+- **Dokumentace musí uvádět verze nástrojů, které build skutečně vyžaduje.**
+  „potřebuje `npm`“ nestačilo: Vite 8 má `engines` `^20.19.0 || >=22.12.0`
+  a čtenář na starším Node se zasekne. Verze se opisuje z `engines`
+  v `node_modules`, ne z paměti.
+- **Prázdný řádek ukončí odsazený Markdown blok.** Konfigurační ukázka
+  v README se kvůli prázdnému řádku vyrenderovala jako dva bloky; obsah
+  zůstal validní, ale kopírování se rozbilo. Ukázky se mají držet v jednom
+  fenced bloku (` ```toml `), ne v odsazeném textu s vnitřními mezerami.
