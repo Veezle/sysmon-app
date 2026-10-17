@@ -89,7 +89,8 @@ v `docs/superpowers/plans/2026-10-17-faze-3-tauri.md`, průběh v `.tasks.json`
 vedle plánu. Pracuje se na větvi **`faze-3-tauri`**. Hotový **Task 1** —
 `src-tauri/` (Tauri 2 bez vlastního frontendu, okno ukazuje na 8430) se
 zbuildí a otevře dashboard; 5 testů titulku, `Cargo.lock` verzovaný,
-`src-tauri/target/` a `src-tauri/gen/` ignorované.
+`src-tauri/target/` a `src-tauri/gen/` ignorované. **Další na řadě je
+Task 2:** sidecar — spawn, readiness a PDEATHSIG.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
