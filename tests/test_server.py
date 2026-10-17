@@ -394,7 +394,11 @@ class StatsTest(unittest.TestCase):
                 self.assertTrue(refs, "index na nic pod /static/ neodkazuje")
                 for ref in refs:
                     with self.subTest(ref=ref):
-                        self.assertEqual(self.get(ref).status, 200, ref)
+                        response = self.get(ref)
+                        self.assertEqual(response.status, 200, ref)
+                        # Neprectene telo pri zavreni spoje posle RST; server
+                        # pak v keep-alive smycce skonci tracebackem na stderr.
+                        response.read()
 
     def test_404_has_no_body_bytes(self):
         """`Content-Length: 0` musi byt pravda, ne jen hlavicka.
@@ -430,10 +434,19 @@ class CacheHeadersTest(unittest.TestCase):
         self.addCleanup(self.server.server_close)
 
     def get(self, path):
+        """Precte i telo: neprectene telo pri zavreni spoje posle RST.
+
+        Server po odpovedi zustava v keep-alive a ceka na dalsi request line;
+        RST z nej udela ConnectionResetError, ktery socketserver vytiskne jako
+        traceback. Testy kontroluji jen hlavicky, takze telo staci precist
+        a zahodit - ale precist se musi.
+        """
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         self.addCleanup(conn.close)
         conn.request("GET", path)
-        return conn.getresponse()
+        response = conn.getresponse()
+        response.read()
+        return response
 
     def test_hashed_asset_is_immutable(self):
         response = self.get(f"/static/{web_fixture.ASSET_NAME}")
@@ -510,7 +523,12 @@ class BuildDisappearsTest(unittest.TestCase):
 
     def test_root_explains_the_missing_build_and_stats_still_work(self):
         with mock.patch.object(self.server, "handle_error") as handle_error:
-            self.assertEqual(self.get("/").status, 200)
+            first = self.get("/")
+            self.assertEqual(first.status, 200)
+            # Telo se musi precist i u odpovedi, kterou test jinak nezkouma:
+            # neprectene telo pri zavreni spoje posle RST a ten skonci jako
+            # traceback z keep-alive smycky serveru.
+            first.read()
 
             self.index.unlink()
 
@@ -541,10 +559,13 @@ class RealBuildCacheHeadersTest(unittest.TestCase):
         self.addCleanup(self.server.server_close)
 
     def get(self, path):
+        """Precte i telo - neprectene telo pri zavreni spoje posle RST."""
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         self.addCleanup(conn.close)
         conn.request("GET", path)
-        return conn.getresponse()
+        response = conn.getresponse()
+        response.read()
+        return response
 
     def test_real_build_serves_cache_headers_over_http(self):
         html = server.load_index()
