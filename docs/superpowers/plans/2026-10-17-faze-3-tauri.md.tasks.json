@@ -55,7 +55,7 @@
     {
       "id": 6,
       "subject": "Task 7: README po fázi 3",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** README rika, jak aplikaci zbuildit a spustit, co dela tray a autostart a co je vedoma mez.\n\n**Files:**\n- README.md\n\n**Acceptance Criteria:**\n- README uvadi webkit2gtk-4.1\n- README uvadi cargo build/run\n- README popisuje tray, --hidden a autostart\n- README odlisuje fazi 3 a 4\n- prikazy projdou doslova\n\n**Verify:** prikazy z README doslova + python3 -m unittest discover -s tests -t .\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"prikazy z README doslova + python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"README uvadi webkit2gtk-4.1\", \"README uvadi cargo build/run\", \"README popisuje tray, --hidden a autostart\", \"README odlisuje fazi 3 a 4\", \"prikazy projdou doslova\"]}\n```",
       "blockedBy": [
         4
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T20:36:52+02:00"
+  "lastUpdated": "2026-10-17T21:21:22+02:00"
 }
