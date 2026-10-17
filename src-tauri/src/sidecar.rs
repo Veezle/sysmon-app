@@ -20,8 +20,8 @@ const STDERR_LINES: usize = 40;
 /// Po takhle dlouhém běhu se rozpočet restartů znovu naplní. Démon, který
 /// vydržel minutu, spadl znovu „od nuly“, ne v rámci jedné poruchové série.
 const UPTIME_RESET: Duration = Duration::from_secs(60);
-/// Dialog běží na hlavním vlákně; když uživatel neodpoví, bere se to jako
-/// „Ukončit“, aby aplikace nezůstala viset navěky.
+/// Dialog běží na hlavním vlákně; když uživatel neodpoví, proces se tvrdě
+/// ukončí, aby aplikace nezůstala viset navěky.
 const DIALOG_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct SidecarHandle {
@@ -32,7 +32,6 @@ pub struct SidecarHandle {
     /// během respawnu a po ukončení). Nikdy nesmí zůstat stale po `wait()`.
     pub pid: Arc<AtomicI32>,
     pub quitting: Arc<AtomicBool>,
-    pub stderr: Arc<Mutex<VecDeque<String>>>,
 }
 
 pub fn port_open() -> bool {
@@ -90,7 +89,6 @@ pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
             owned,
             pid,
             quitting,
-            stderr,
         });
     }
 
@@ -117,7 +115,6 @@ pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
                 owned,
                 pid,
                 quitting,
-                stderr,
             });
         }
         return Err(err);
@@ -129,7 +126,6 @@ pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
         owned: owned.clone(),
         pid: pid.clone(),
         quitting: quitting.clone(),
-        stderr: stderr.clone(),
     };
     start_supervisor(app, cwd, child, owned, pid, quitting, stderr);
     Ok(handle)
@@ -257,7 +253,8 @@ fn supervise(
 
 /// Ukáže dialog „Zkusit znovu / Ukončit“. Vrací `true` pro nový pokus;
 /// `false` znamená, že uživatel zvolil „Ukončit“ (nebo se dialog nepodařilo
-/// doručit), a pak se aplikace opravdu ukončí.
+/// doručit), a volající aplikaci ukončí. Neodpovězený dialog ukončí proces
+/// přímo v `retry_dialog`.
 fn retry_or_exit(app: &AppHandle, stderr: &Arc<Mutex<VecDeque<String>>>) -> bool {
     if retry_dialog(app, stderr) {
         true
@@ -281,9 +278,18 @@ fn retry_dialog(app: &AppHandle, stderr: &Arc<Mutex<VecDeque<String>>>) -> bool 
     if queued.is_err() {
         return false;
     }
-    // Vědomé zjednodušení: neodpovězený dialog po 300 s skončí jako
-    // „Ukončit“, aby aplikace nezůstala viset.
-    rx.recv_timeout(DIALOG_TIMEOUT).unwrap_or(false)
+    // Neodpovězený dialog by aplikaci nechal viset navěky. `app.exit()` tady
+    // nestačí: hlavní vlákno je zablokované v `dialog.run()`, takže jen
+    // zařadí `RequestExit` do event loopu, který ho nikdy nezpracuje.
+    match rx.recv_timeout(DIALOG_TIMEOUT) {
+        Ok(retry) => retry,
+        Err(_) => {
+            // Vlastněné dítě v tuhle chvíli neexistuje (dialog se otevírá až
+            // po jeho smrti nebo selhání spawnu); případné dítě v respawnu
+            // drží PDEATHSIG a zmizí s námi.
+            std::process::exit(1);
+        }
+    }
 }
 
 fn spawn_daemon(
@@ -384,16 +390,20 @@ pub fn stop_owned(app: &AppHandle) {
         libc::kill(pid, libc::SIGTERM);
     }
     let deadline = Instant::now() + STOP_GRACE;
+    let mut alive = true;
     while Instant::now() < deadline {
         if unsafe { libc::kill(pid, 0) } != 0 {
+            alive = false;
             break;
         }
         thread::sleep(Duration::from_millis(50));
     }
-    // Když proces do grace doby nezmizel, dorazí ho SIGKILL. Na již mrtvý
-    // PID je to no-op; stale PID se do stavu nikdy neuloží.
-    unsafe {
-        libc::kill(pid, libc::SIGKILL);
+    // SIGKILL jen když proces do grace doby skutečně nezmizel; na už
+    // zmizelý (a případně recyklovaný) PID se nesahá.
+    if alive {
+        unsafe {
+            libc::kill(pid, libc::SIGKILL);
+        }
     }
     handle.pid.store(0, Ordering::SeqCst);
 }
