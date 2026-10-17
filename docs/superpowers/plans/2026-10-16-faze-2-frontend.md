@@ -946,6 +946,73 @@ pri startu (rc=2) i za behu (503), ne tracebackem."
 
 ---
 
+> **Uzavření Tasku 3 (2026-10-17) — hotovo, čtyři commity:** `bd2647a` (cache
+> hlavičky + hlášení chybějícího buildu), `421a2c7` (testy čtou těla odpovědí —
+> jinak keep-alive RST tracebacky), `42dfd55` (izolace brány buildu
+> v `MainTestCase`/`SIGINT_SCRIPT`, `/stats` pin) a `e307004` (normalizace
+> cesty v `cache_for`, pin 503 `no-store`). Spec recenze ✅ (10/10 mutantů),
+> kvalitativní ⚠️ se čtyřmi minor (tři opraveny, jeden vědomá mez), delta
+> recenze ✅.
+>
+> **Naměřená čísla:** sada **151 testů** s buildem → `OK`; **bez buildu**
+> (přesunutý `sysmon_app/web`) → `OK (skipped=2)`, rc=0, v obou bězích
+> **0 tracebacků** na stderr. Skip jsou `RealBuildCacheHeadersTest`
+> a Task 1 build-závislý pin. Po drátě na skutečném buildu: `/` →
+> `no-store`, `index-DwUz2KZ4.js` → `public, max-age=31536000, immutable`,
+> `index-TZrNw7dA.css` → totéž, `/static/icon.svg` → `no-store`, `/stats` →
+> 200 JSON `no-store`, `/events` → 200 `text/event-stream` `no-store`, 404
+> beze změny. `curl --path-as-is /static/assets/../icon.svg` → `no-store`
+> (dřív immutable). Bez buildu: `rc=2`, stdout prázdný, stderr česká věta
+> s přesnou cestou `.../sysmon_app/web/index.html` a `npm ci && npm run build`,
+> 0 tracebacků. Za běhu po odebrání `index.html`: `/` → 503
+> `text/plain; charset=utf-8`, `no-store`, česká věta; `/stats` dál 200;
+> `handle_error` nevolán. Mutanty: 10/10 zabito (cache vždy `no-store`, jen
+> `.js`, vždy immutable, default immutable, `load_index` bez `try`, 200 místo
+> 503, brána po `Monitor`, hláška bez cesty, rc 0, špatný content-type) + další
+> (503 immutable, zdvojená hlavička, prázdný index).
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Startovní test nesmí volat `main()` napřímo.** Předloha by před
+>   implementací spustila skutečný `Monitor` a server a mohla zavěsit; test
+>   používá `self.run_main([])` z `MainTestCase` (podstrčené
+>   `Monitor`/`Feed`/`serve`).
+> - **Brána `load_index() is None` v `main()` je stav celé sady.** Po jejím
+>   zavedení spadlo bez buildu 11 testů v `test_main.py`; `MainTestCase.setUp`
+>   proto podstrkuje temp `WEB_DIR` s `index.html` a `SIGINT_SCRIPT` patchuje
+>   `load_index`. Invariant „sada projde bez buildu“ je znovu pinovaný
+>   (`OK (skipped=2)`).
+> - **Přidány testy, které předloha neměla:** `BuildDisappearsTest` (skutečné
+>   zmizení buildu za běhu + `/stats` dál 200), `RealBuildCacheHeadersTest`
+>   (build-závislý pin nad skutečným buildem), immutable pro hashovaný `.css`
+>   (mutant „jen `.js`“), `no-store` pro `/stats` a pro 503.
+> - **`cache_for` rozhoduje podle normalizované cesty.** Syrové jméno
+>   `assets/../icon.svg` prošlo prefixem a nehashovaná ikona dostala
+>   `immutable`; `os.path.normpath` to zavírá a test to pinuje.
+> - **Testy čtou těla odpovědí.** Nepřečtené tělo při `conn.close()` pošle RST,
+>   server v keep-alive skončí `ConnectionResetError` a vytiskne traceback,
+>   i když sada hlásí OK (naměřeno 6×). Opraveno v nových i jednom starším
+>   testu.
+>
+> **Vědomé meze:**
+> - `load_index()` chytá jen `FileNotFoundError`. Když `index.html` existuje,
+>   ale je to adresář nebo je nečitelný (práva 000), start skončí tracebackem
+>   a za běhu klient dostane spadlé spojení místo 503 (naměřeno). Mimo literální
+>   AC Tasku 3; kandidát na hardening v některém z dalších tasků.
+> - Abort požadavku klientem (RST, `SO_LINGER 0`) pořád vede na `handle_error`
+>   a traceback na stderr — chování před Taskem 3, netýká se chybějícího buildu.
+>   Řeší se až s SSE v Tasku 10 (obal před hlavičkami).
+> - `404` neposílá `Cache-Control` (předchozí chování; 404 není v AC).
+> - Dva importy téhož modulu v `__main__.py` (`serve`/`load_index` napřímo kvůli
+>   testovacímu seamu + `server_modul` kvůli `WEB_DIR`) jsou okomentované;
+>   refaktor by rozbil `run_main` patchování.
+>
+> **Poučení:** (1) vstupní brána v `main()` musí být v testech izolovaná, jinak
+> se rozbije invariant „sada bez buildu“; (2) cache rozhodnutí podle syrové URL
+> cesty jde obejít `..` — normalizovat; (3) nepřečtené tělo odpovědi dělá
+> z keep-alive RST traceback, zelená sada to neskryje. Zapsáno v `CLAUDE.md`.
+
+---
+
 ### Task 4: Typy kontraktu a fixture, která nemůže zestárnout
 
 **Goal:** `snapshot.ts` popisuje kontrakt a `snapshot.contract.ts` ho pinuje

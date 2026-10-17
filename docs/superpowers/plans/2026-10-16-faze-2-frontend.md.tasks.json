@@ -19,7 +19,7 @@
     {
       "id": 2,
       "subject": "Task 3: Démon umí servírovat build (cache hlavičky, chybějící build)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Hashované assety `immutable`, `index.html` `no-store`; chybějící build se hlásí česky při startu i za běhu.\n\nPoznámka z recenze Tasku 2: v `server.py` aktualizovat zastaralý docstring (jmenuje `style.css`/`app.js`; build už vydává `static/assets/index-<hash>.{js,css}`).\n\n**Files:**\n- Modify `sysmon_app/server.py`\n- Modify `sysmon_app/__main__.py`\n- Test `tests/test_server.py`, `tests/test_main.py`\n\n**Acceptance Criteria:**\n- [ ] hashovaný asset má `Cache-Control: public, max-age=31536000, immutable`\n- [ ] `/` a `icon.svg` mají `no-store`\n- [ ] bez buildu: česká věta s cestou a příkazem, rc=2, bez tracebacku\n- [ ] když build zmizí za běhu: `GET /` → 503 text/plain s českou větou\n\n**Verify:** `python3 -m unittest tests.test_server tests.test_main -v` → PASS; živý běh s přesunutým buildem\n\n```json:metadata\n{\"files\": [\"sysmon_app/server.py\", \"sysmon_app/__main__.py\", \"tests/test_server.py\", \"tests/test_main.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_server tests.test_main -v\", \"acceptanceCriteria\": [\"immutable pro hashované assety\", \"no-store pro index\", \"chybějící build hlásí větou (rc=2)\", \"503 za běhu\"]}\n```",
       "blockedBy": [
         1
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T09:08:57+02:00"
+  "lastUpdated": "2026-10-17T09:46:54+02:00"
 }

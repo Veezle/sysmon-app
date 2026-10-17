@@ -40,10 +40,12 @@ se build-závislé piny přeskočí). Hotový **Task 2** — `frontend/` (Vite 8
 React 19.3.1 + TS 5.9.3) se buildí do `sysmon_app/web/`, který je v
 `.gitignore`; stará kopie frontendu je z repa smazaná (`../sysmon` zůstává
 referencí). Build servíruje démon beze změny rout (`/`, `/static/*`), dev
-server proxyuje `/stats` a `/events` na 8430. **Další na řadě je Task 3:**
-cache hlavičky (immutable pro hashované assety, no-store pro index) a hlášení
-chybějícího buildu. Python závislost je pořád jen `psutil`; JS závislosti žijí
-jen ve `frontend/package.json` a lockfile se commituje.
+server proxyuje `/stats` a `/events` na 8430. Hotový **Task 3** — hashované
+assety mají `immutable`, index a ikona `no-store`; chybějící build se hlásí
+česky při startu (`rc=2`) i za běhu (503) a sada má **151 testů** a projde
+i bez buildu (`OK (skipped=2)`). **Další na řadě je Task 4:** typy kontraktu
+a fixture generovaná Pythonem. Python závislost je pořád jen `psutil`; JS
+závislosti žijí jen ve `frontend/package.json` a lockfile se commituje.
 
 Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
 předlohu**,
@@ -266,6 +268,23 @@ Postup u jednoho tasku:
   `sysmon_app/web/`, kde ležela stará kopie frontendu; build ji smazal z disku
   dřív, než přišlo `git rm`. Mazání z indexu proto musí být naistagované
   **před** buildem, jinak „`git status` je po buildu čistý“ neplatí.
+- **Vstupní brána v `main()` je stav celé testovací sady.** Jakmile `main()`
+  začne odmítat start (v Tasku 3 `load_index() is None → rc 2`), každý test,
+  který `main()` volá, musí bránu izolovat fixture: `MainTestCase.setUp`
+  podstrčí `WEB_DIR` s `index.html`, podproces patchuje `load_index`. Jinak se
+  zelená sada rozpadne jen na stroji bez buildu — naměřeno 11 selhání, zatímco
+  s buildem bylo vše OK.
+- **Cache rozhodnutí podle syrové URL cesty jde obejít.** `cache_for` testoval
+  `name.startswith("assets/")`, takže `/static/assets/../icon.svg` dostal
+  `immutable`, ačkoli je to nehashovaná ikona, která má mít `no-store`.
+  `os.path.normpath` před rozhodnutím a pin na dot-segment variantu; testy
+  běžných cest to nevidí.
+- **Nepřečtené tělo odpovědi dělá z keep-alive RST traceback.** Test, který
+  přečte jen status/hlavičky a zavře spojení, nechá v bufferu tělo;
+  `conn.close()` pošle RST, server v keep-alive skončí `ConnectionResetError`
+  a `socketserver` vytiskne traceback — sada přitom hlásí OK. Tělo se musí
+  přečíst, i když ho test nepotřebuje; jinak pin na „žádný traceback“ nic
+  neříká.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
