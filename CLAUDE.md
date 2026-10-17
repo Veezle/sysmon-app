@@ -98,7 +98,11 @@ volný, cizí démon přežije. Hotový **Task 3** — dozor: pád vlastněného
 démona restartuje po 1/2/4 s, čtvrtý pád otevře dialog „Zkusit znovu /
 Ukončit“, `rc=2` se nerestartuje a ukáže stderr; neodpovězený dialog po
 300 s proces ukončí; 12 testů, restart naměřen za 1,1–4,2 s podle pokusu.
-**Další na řadě je Task 4:** tray, zavření do traye a ukončení.
+Hotový **Task 4** — tray (SNI `Title="Sysmon"`, menu „Otevřít dashboard“ /
+„Ukončit“), zavření okna schová do traye a „Ukončit“ zastaví aplikaci
+i vlastněného démona; v prostředí bez StatusNotifier watchera se tray
+nevytvoří a zavření okna aplikaci ukončí; 13 testů, build bez warningů.
+**Další na řadě je Task 5:** autostart a `--hidden`.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 

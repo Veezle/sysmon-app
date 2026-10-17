@@ -28,7 +28,7 @@
     {
       "id": 3,
       "subject": "Task 4: Tray, zavření do traye a ukončení",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Tray ikona s menu, zavreni okna schova, ukonceni zastavi vlastneneho demona.\n\n**Files:**\n- src-tauri/src/ui.rs\n- src-tauri/src/main.rs\n\n**Acceptance Criteria:**\n- tray ikona v KDE panelu\n- levy klik a Otevrit dashboard okno zviditelni\n- zavreni okna proces neukonci\n- Ukoncit zastavi aplikaci i demona; 8430 volny\n- bez traye se zavreni chova jako ukonceni\n\n**Verify:** cargo test + rucni KDE klikani + pgrep/ss\n\n```json:metadata\n{\"files\": [\"src-tauri/src/ui.rs\", \"src-tauri/src/main.rs\"], \"verifyCommand\": \"cargo test + rucni KDE klikani + pgrep/ss\", \"acceptanceCriteria\": [\"tray ikona v KDE panelu\", \"levy klik a Otevrit dashboard okno zviditelni\", \"zavreni okna proces neukonci\", \"Ukoncit zastavi aplikaci i demona; 8430 volny\", \"bez traye se zavreni chova jako ukonceni\"]}\n```",
       "blockedBy": [
         2
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T18:32:00+02:00"
+  "lastUpdated": "2026-10-17T19:15:00+02:00"
 }
