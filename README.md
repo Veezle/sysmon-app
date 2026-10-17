@@ -3,8 +3,9 @@
 Dashboard systémových metrik pro Linux — jako okno i jako stránka na telefonu.
 Druhý, samostatný produkt vedle `sysmon`; ten se nemění.
 
-**Stav: fáze 1 (démon) a fáze 2 (React frontend) hotové.** Tauri okno, balení
-a měření paměti (fáze 3–4) jsou zatím jen v návrhu. Návrhy:
+**Stav: fáze 1 (démon) hotová. Fáze 2 (React frontend) je implementovaná;
+zbývá její závěrečné end-to-end ověření.** Tauri okno, balení a měření paměti
+(fáze 3–4) jsou zatím jen v návrhu. Návrhy:
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md` a
 `docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`.
 
@@ -30,7 +31,7 @@ za běhu, `/` odpoví `503` se stejným návodem.
 Poslouchá na `0.0.0.0:8430` a v prohlížeči je na <http://localhost:8430>.
 Potřebuje **Python 3.11 a novější** (konfiguraci čte stdlib `tomllib`).
 Jediná Python závislost je `psutil` (`pacman -S python-psutil`); build
-frontendu potřebuje `npm`.
+frontendu potřebuje Node `^20.19.0` nebo `>=22.12.0` a `npm`.
 
 Port je **8430**, ne 8420 — `sysmon` má 8420 a oba mají běžet vedle sebe.
 Ukončuje se `Ctrl+C`.
