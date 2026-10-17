@@ -1,14 +1,16 @@
 """Piny, ktere meri produkt: build, chovani v prohlizeci a prebuildovavani.
 
-Vsechny tri potrebuji build v `sysmon_app/web/` a `google-chrome-stable`.
-Bez nich se preskakuji - sada musi zustat zelena i v cerstvem klonu, ale
-v hlaseni tasku musi byt videt, jestli pin opravdu bezel.
+Privacy pin potrebuje jen build. Rebuild a fallback pin potrebuji navic
+`google-chrome-stable` (nebo `chromium`). Bez nich se preskakuji - sada musi
+zustat zelena i v cerstvem klonu, ale v hlaseni tasku musi byt videt, jestli
+pin opravdu bezel.
 
 Co se tu meri:
   * privacy  - build netahá nic z ciziho originu (zadne CDN, zadny @import),
   * rebuild  - konstantni data neznamenaji prebuildovani seznamu (childList
                mutace = 0, prvni radek je porad tyz objekt),
-  * fallback - kdyz /events umre, stranka se i tak aktualizuje pres /stats.
+  * fallback - kdyz /events umre, stranka se behem JEDNOHO nacteni dal
+               aktualizuje pres /stats.
 
 U rebuild pinu se pocitaji i /stats requesty: `mutations=0` pri nule tiku je
 planý pin. Proti otevrenemu SSE by `--virtual-time-budget` visel (Chrome ceka
@@ -48,6 +50,11 @@ LIST_IDS = ("cores", "services-list", "proc-list", "docker-containers")
 # ktera jeste dokazuje, ze tiky skutecne probehly.
 MIN_POLLS = 50
 
+# Fallback pin ceka 12 s virtualniho casu po prvnim vykresleni. Polling startuje
+# po STALE_MS=4,5 s a pak tika kazdych 1,5 s, takze se ocekava ~6 pollu; 3 je
+# rezerva, ktera jeste dokazuje, ze se stranka hybala opakovaně.
+MIN_FALLBACK_POLLS = 3
+
 
 class ConstantMonitor:
     """Porad stejny snapshot - pin meri prebuildovavani, ne zmenu dat."""
@@ -70,11 +77,6 @@ def dump_dom(port, budget_ms):
         capture_output=True, text=True, timeout=180, check=True,
     )
     return out.stdout
-
-
-def _cpu_value(html):
-    found = re.search(r'id="cpu"[^>]*>([^<]*)', html)
-    return found.group(1) if found else None
 
 
 @contextlib.contextmanager
@@ -195,6 +197,47 @@ def parse_result(html):
     return found.group(1).strip()
 
 
+# Fallback harness: meri v ramci JEDNOHO nacteni. Dve samostatna nacteni by
+# změřila jen to, ze kazda stranka dostane od pocitadla jinou hodnotu pri
+# prvnim fetchi - a pin by prosel i s vypnutym pollingem.
+FALLBACK_HARNESS = """<!doctype html>
+<html lang="cs"><head><meta charset="utf-8"><title>fallback</title></head>
+<body>
+<div id="root"></div>
+<div id="result">pending</div>
+<script type="module">
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const cpu = () => document.querySelector("#cpu");
+  let stats = 0;
+  const realFetch = window.fetch.bind(window);
+  window.fetch = (...args) => {
+    if (String(args[0]).indexOf("/stats") !== -1) stats += 1;
+    return realFetch(...args);
+  };
+  await import("%(bundle)s");
+  // Prvni vykresleni: #cpu existuje az se snapshotem a nese cislo.
+  const deadline = performance.now() + 10000;
+  let ready = false;
+  while (performance.now() < deadline) {
+    const el = cpu();
+    if (el !== null && /^[0-9]+$/.test(el.textContent.trim())) { ready = true; break; }
+    await sleep(50);
+  }
+  const first = ready ? cpu().textContent.trim() : "n/a";
+  const before = stats;
+  // 12 s virtualniho casu: po STALE_MS=4500 ms probehne ~6 pollu.
+  await sleep(12000);
+  const later = cpu() === null ? "n/a" : cpu().textContent.trim();
+  document.getElementById("result").textContent =
+    "ready=" + String(ready) +
+    " first=" + first +
+    " later=" + later +
+    " polls=" + (stats - before) +
+    " total=" + stats;
+</script></body></html>
+"""
+
+
 class BuildPrivacyTest(unittest.TestCase):
     @NEEDS_BUILD
     def test_build_has_no_external_origins(self):
@@ -252,14 +295,26 @@ class PollingFallbackTest(unittest.TestCase):
 
         monitor = CountingMonitor()
         feed = SnapshotFeed(monitor)
-        srv = serve_with(monitor, feed, BrokenEventsHandler)
-        self.assertIs(srv.RequestHandlerClass, BrokenEventsHandler)
-        port = start_serving(self, srv)
+        harness = FALLBACK_HARNESS % {"bundle": bundle_url()}
+        with built_web(harness) as _root:
+            srv = serve_with(monitor, feed, BrokenEventsHandler)
+            self.assertIs(srv.RequestHandlerClass, BrokenEventsHandler,
+                          "patch Handler neprosel - /events by nezavrel proud")
+            port = start_serving(self, srv)
+            html = dump_dom(port, 30000)
 
-        first = dump_dom(port, 4000)
-        later = dump_dom(port, 20000)
-        self.assertNotEqual(_cpu_value(first), _cpu_value(later),
-                            "stranka se bez /events neaktualizovala")
+        result = parse_result(html)
+        self.assertIn("ready=true", result,
+                      "harness nezachytil prvni vykresleni #cpu: " + result)
+        self.assertNotIn("n/a", result, "stranka se vubec nevykreslila: " + result)
+        values = dict(part.split("=", 1) for part in result.split() if "=" in part)
+        self.assertNotEqual(values.get("first"), values.get("later"),
+                            "stranka se bez /events neaktualizovala: " + result)
+        polls = int(values.get("polls", "0"))
+        self.assertGreaterEqual(
+            polls, MIN_FALLBACK_POLLS,
+            "za 12 s probehlo malo pollu (%d) - pin nic nemeri" % polls,
+        )
 
 
 if __name__ == "__main__":
