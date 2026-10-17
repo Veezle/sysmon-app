@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 2: Bundled démon, bundle config a migrace autostartu",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Obal najde zabaleneho demona relativne ke sve binarce, tauri.conf umi bundling a instalovana aplikace tise prepsise zastaraly autostart.\n\n**Files:**\n- src-tauri/tauri.conf.json\n- src-tauri/src/sidecar.rs\n- src-tauri/src/autostart.rs\n- src-tauri/src/main.rs\n- packaging/sysmon-app.desktop.template\n\n**Acceptance Criteria:**\n- cargo test projde; nove testy pinuji hledani bundled demona i should_rewrite\n- cargo build --release projde\n- z cargo run se stale spousti python3 -m sysmon_app\n- ze simulovaneho instalovaneho stromu se spusti bundled demon a /stats odpovi\n- existujici .desktop s vyvojovou cestou se z instalovane cesty prepsise; z target/ ne\n- tauri.conf ma productName sysmon-app, bundle.active true, targets deb/rpm/appimage a resources na packaging/daemon\n\n**Verify:** cargo test + cargo build --release + simulovany instalovany strom + prepis .desktop\n\n```json:metadata\n{\"files\": [\"src-tauri/tauri.conf.json\", \"src-tauri/src/sidecar.rs\", \"src-tauri/src/autostart.rs\", \"src-tauri/src/main.rs\", \"packaging/sysmon-app.desktop.template\"], \"verifyCommand\": \"cargo test + cargo build --release + simulovany instalovany strom + prepis .desktop\", \"acceptanceCriteria\": [\"cargo test projde; nove testy pinuji hledani bundled demona i should_rewrite\", \"cargo build --release projde\", \"z cargo run se stale spousti python3 -m sysmon_app\", \"ze simulovaneho instalovaneho stromu se spusti bundled demon a /stats odpovi\", \"existujici .desktop s vyvojovou cestou se z instalovane cesty prepsise; z target/ ne\", \"tauri.conf ma productName sysmon-app, bundle.active true, targets deb/rpm/appimage a resources na packaging/daemon\"]}\n```",
       "blockedBy": [
         0
@@ -45,5 +45,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T23:15:00+02:00"
+  "lastUpdated": "2026-10-17T23:35:00+02:00"
 }

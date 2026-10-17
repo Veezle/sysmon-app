@@ -784,6 +784,31 @@ git add src-tauri/tauri.conf.json src-tauri/src/sidecar.rs \
 git commit -m "fáze 4: bundle config, bundled démon a migrace autostartu"
 ```
 
+> **Uzavření Tasku 2 (2026-10-17) — hotovo, commity `29a7cd5`, `09db118`:**
+> - `DaemonSource` a `resolve_daemon` hledají přednostně bundled démona
+>   (`<exe>/../lib/sysmon-app/daemon/sysmon-app-daemon`), pak zdrojový
+>   `python3 -m sysmon_app`; respawn po pádu používá stejný zdroj.
+> - `tauri.conf.json`: `productName = sysmon-app`, resources
+>   `../packaging/daemon` → `daemon`, targets `deb`/`rpm`/`appimage`,
+>   desktop šablona s `Name=Sysmon` a `StartupWMClass=Sysmon`.
+> - Autostart: `.desktop` z vývojové cesty se z instalované cesty tiše
+>   přepíše; z `target/` ne. U AppImage se používá `APPIMAGE` (ne efemérní
+>   mount); `Hidden=true` a `X-GNOME-Autostart-enabled=false` se respektují;
+>   cesty s `%` se odmítnou.
+> - `.gitkeep` v `packaging/daemon/` drží resource cestu v čerstvém klonu;
+>   `cargo test` i `cargo build --release` projdou i bez zbuilděného démona.
+> - Naměřeno: **53 Rust testů** (33 před taskem), simulovaná instalace
+>   spustí bundled démona a `/stats` odpoví; vývojový běh spustí
+>   `python3 -m sysmon_app`; respawn po `SIGKILL` do ~2 s; PDEATHSIG uklidí.
+> - Recenze: shoda PASS; kvalita APPROVED WITH ISSUES → devět cílených
+>   oprav → delta PASS bez blokujících nálezů.
+>
+> **Vědomé meze Tasku 2:** `autostart_disabled` nerozpozná zápis
+> `Hidden = true` s mezerami kolem `=`; migrovaný `.desktop` nemá
+> `StartupWMClass` (balíčková šablona ano); `is_executable` kontroluje
+> libovolný `x` bit, ne efektivní právo uživatele; skutečný `cargo tauri
+> build` a asociace okna v DE patří do Tasku 3 a 5.
+
 ---
 
 ### Task 3: Instalátory a kontejnerové ověření
