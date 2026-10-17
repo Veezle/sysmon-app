@@ -1,7 +1,10 @@
+import { BatteryCard } from "./components/BatteryCard";
 import { CpuCard } from "./components/CpuCard";
+import { DiskCard } from "./components/DiskCard";
 import { GpuCard } from "./components/GpuCard";
 import { Header } from "./components/Header";
 import { MemCard } from "./components/MemCard";
+import { NetworkCard } from "./components/NetworkCard";
 import { useSnapshot } from "./data/useSnapshot";
 import { describeError } from "./lib/format";
 
@@ -42,6 +45,9 @@ export default function App() {
       />
       <GpuCard gpu={snapshot.gpu} />
       <MemCard mem={snapshot.mem} swap={snapshot.swap} />
+      <BatteryCard battery={snapshot.battery} history={snapshot.battery_history} />
+      <NetworkCard net={snapshot.net} />
+      <DiskCard disk={snapshot.disk} nvmeTemp={snapshot.system.nvme_temp} />
     </>
   );
 }
