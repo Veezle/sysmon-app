@@ -75,4 +75,10 @@ mod tests {
         assert_eq!(window_title_from(Some(""), Some("arch")), "arch — Sysmon");
         assert_eq!(window_title_from(Some("veezle"), Some("")), "Sysmon");
     }
+
+    #[test]
+    fn user_without_host_is_not_used() {
+        assert_eq!(window_title_from(Some("veezle"), None), "Sysmon");
+        assert_eq!(window_title_from(Some(""), Some("")), "Sysmon");
+    }
 }
