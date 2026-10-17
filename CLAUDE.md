@@ -29,7 +29,7 @@ odběratelů), Task 9 (`server` — SPA a `/stats`), Task 10 (SSE proud na
 `/events`), Task 11 (`__main__` — spustitelný démon), Task 12 (`README`
 a end-to-end ověření).
 
-**Fáze 2 (React frontend) běží.** Návrh v
+**Fáze 2 (React frontend) hotová.** Návrh v
 `docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`, plán po úlohách
 v `docs/superpowers/plans/2026-10-16-faze-2-frontend.md`, průběh v `.tasks.json`
 vedle plánu, pravidla pro tasky v plánu („Pravidla pro každý task"). Pracuje se
@@ -73,8 +73,14 @@ načtení (`first`/`later` + počet pollů). Hotový **Task 10** — README po f
 build (`npm ci && npm run build`) jako krok před spuštěním, chování bez buildu
 (rc=2 i 503), SSE s pollingovou pojistkou, zdroj ve `frontend/`, build
 v `.gitignore`, verze Node `^20.19.0 || >=22.12.0`; každý příkaz z README byl
-spuštěn doslova. **Další na řadě je Task 11:** end-to-end ověření fáze 2 —
-karty proti 8420, telefon bez obnovení a naměřená čísla do plánu.
+spuštěn doslova. Hotový **Task 11** — end-to-end ověření fáze 2: sada
+**156 testů** zelená s buildem (0 skipped, tři piny Tasku 9 běžely) i bez něj
+(`OK (skipped=5)`); screenshoty obou portů (1400×2257, 9 karet) mají shodné
+popisky, pořadí i geometrii a liší se jen živými hodnotami a akčními tlačítky
+(záměr Tasku 8); `/stats` i první rámec `/events` vydávají stejných 17 klíčů
+jako 8420; živá aktualizace bez obnovení naměřena v jedné CDP session přes LAN
+(`esFrames` 4 → 11, `statsFetches` zůstal 1). Skutečný telefon nebyl po ruce —
+LAN cesta je změřená jen z téhož stroje. **Fáze 2 je hotová.**
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -94,6 +100,8 @@ kterou měl README učit (a ověření fáze 1 zůstalo jen v hlášení, ne v r
 Opsaný kód se recenzuje jako nový.
 
 Fáze 3–4 (Tauri obal, balení a měření paměti) jsou zatím jen v návrhu.
+**Odloženo do fáze 3–4:** statický titulek `Sysmon` v `frontend/index.html`
+(produkt se jmenuje `sysmon-app`); kosmetická změna, ve fázi 2 se neopravovala.
 
 ## Jak se tady pracuje
 

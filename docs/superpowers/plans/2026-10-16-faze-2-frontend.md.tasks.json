@@ -91,7 +91,7 @@
     {
       "id": 10,
       "subject": "Task 11: End-to-end ověření fáze 2",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Ověřit karty proti `sysmonu`, živý telefon a zapsat naměřená čísla do plánu.\n\n**Files:**\n- Modify `docs/superpowers/plans/2026-10-16-faze-2-frontend.md` (uzavření)\n\n**Acceptance Criteria:**\n- [ ] sada zelená s buildem (piny z Tasku 9 běžely, ne skipped)\n- [ ] sada zelená i bez buildu\n- [ ] karty na 8430 odpovídají 8420 (screenshoty prohlédnuté)\n- [ ] `/stats` i `/events` vydávají tytéž klíče jako 8420\n- [ ] stránka se na telefonu aktualizuje bez obnovení\n- [ ] naměřená čísla jsou v uzavření v plánu (commitem)\n\n**Verify:** příkazy Step 1–4 + uzavření v plánu\n\n```json:metadata\n{\"files\": [\"docs/superpowers/plans/2026-10-16-faze-2-frontend.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"sada zelená s buildem i bez\", \"karty odpovídají sysmonu\", \"kontrakt shodný\", \"uzavření s čísly\"]}\n```",
       "blockedBy": [
         8,
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T14:18:28+02:00"
+  "lastUpdated": "2026-10-17T14:56:56+02:00"
 }
