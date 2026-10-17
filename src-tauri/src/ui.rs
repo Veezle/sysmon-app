@@ -1,0 +1,78 @@
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+
+pub const WINDOW_LABEL: &str = "main";
+pub const DASHBOARD_URL: &str = "http://127.0.0.1:8430/";
+
+pub fn window_title_from(user: Option<&str>, host: Option<&str>) -> String {
+    match (user, host) {
+        (Some(u), Some(h)) if !u.is_empty() && !h.is_empty() => {
+            format!("{u}@{h} — Sysmon")
+        }
+        (_, Some(h)) if !h.is_empty() => format!("{h} — Sysmon"),
+        _ => "Sysmon".to_string(),
+    }
+}
+
+pub fn hostname() -> Option<String> {
+    let mut buf = [0u8; 256];
+    let rc = unsafe {
+        libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len())
+    };
+    if rc != 0 {
+        return None;
+    }
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    String::from_utf8(buf[..end].to_vec())
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
+pub fn window_title() -> String {
+    let user = std::env::var("USER").ok();
+    window_title_from(user.as_deref(), hostname().as_deref())
+}
+
+pub fn create_main_window(app: &AppHandle, hidden: bool) -> tauri::Result<()> {
+    let url = DASHBOARD_URL.parse().expect("platná URL dashboardu");
+    WebviewWindowBuilder::new(app, WINDOW_LABEL, WebviewUrl::External(url))
+        .title(window_title())
+        .inner_size(1180.0, 820.0)
+        .min_inner_size(360.0, 560.0)
+        .visible(!hidden)
+        .build()?;
+    Ok(())
+}
+
+pub fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn title_uses_user_and_host() {
+        assert_eq!(window_title_from(Some("veezle"), Some("arch")), "veezle@arch — Sysmon");
+    }
+
+    #[test]
+    fn title_falls_back_to_host() {
+        assert_eq!(window_title_from(None, Some("arch")), "arch — Sysmon");
+    }
+
+    #[test]
+    fn title_falls_back_to_product_name() {
+        assert_eq!(window_title_from(None, None), "Sysmon");
+    }
+
+    #[test]
+    fn empty_strings_are_missing_values() {
+        assert_eq!(window_title_from(Some(""), Some("arch")), "arch — Sysmon");
+        assert_eq!(window_title_from(Some("veezle"), Some("")), "Sysmon");
+    }
+}
