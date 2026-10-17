@@ -1,0 +1,49 @@
+{
+  "planPath": "docs/superpowers/plans/2026-10-17-faze-4-baleni.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: PyInstaller onedir démona",
+      "status": "pending",
+      "description": "**Goal:** packaging/build-daemon.sh zbuildi sysmon-app-daemon jako onedir se zabudovanym Vite buildem; binarka funguje bez systemoveho Pythonu.\n\n**Files:**\n- packaging/requirements-build.txt\n- packaging/build-daemon.sh\n- .gitignore\n\n**Acceptance Criteria:**\n- build skonci 0 a vytvori packaging/daemon/sysmon-app-daemon + _internal\n- bez sysmon_app/web/index.html skonci 2 s ceskou vetou\n- binarka obslouzi /stats, / a /events\n- binarka bezi v debian:13 bez Pythonu\n- packaging/.venv, packaging/build, packaging/daemon nejsou v gitu\n\n**Verify:** packaging/build-daemon.sh + curl na 18430 + Docker bez Pythonu\n\n```json:metadata\n{\"files\": [\"packaging/requirements-build.txt\", \"packaging/build-daemon.sh\", \".gitignore\"], \"verifyCommand\": \"packaging/build-daemon.sh + curl na 18430 + Docker bez Pythonu\", \"acceptanceCriteria\": [\"build skonci 0 a vytvori packaging/daemon/sysmon-app-daemon + _internal\", \"bez sysmon_app/web/index.html skonci 2 s ceskou vetou\", \"binarka obslouzi /stats, / a /events\", \"binarka bezi v debian:13 bez Pythonu\", \"packaging/.venv, packaging/build, packaging/daemon nejsou v gitu\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Bundled démon, bundle config a migrace autostartu",
+      "status": "pending",
+      "description": "**Goal:** Obal najde zabaleneho demona relativne ke sve binarce, tauri.conf umi bundling a instalovana aplikace tise prepsise zastaraly autostart.\n\n**Files:**\n- src-tauri/tauri.conf.json\n- src-tauri/src/sidecar.rs\n- src-tauri/src/autostart.rs\n- src-tauri/src/main.rs\n- packaging/sysmon-app.desktop.template\n\n**Acceptance Criteria:**\n- cargo test projde; nove testy pinuji hledani bundled demona i should_rewrite\n- cargo build --release projde\n- z cargo run se stale spousti python3 -m sysmon_app\n- ze simulovaneho instalovaneho stromu se spusti bundled demon a /stats odpovi\n- existujici .desktop s vyvojovou cestou se z instalovane cesty prepsise; z target/ ne\n- tauri.conf ma productName sysmon-app, bundle.active true, targets deb/rpm/appimage a resources na packaging/daemon\n\n**Verify:** cargo test + cargo build --release + simulovany instalovany strom + prepis .desktop\n\n```json:metadata\n{\"files\": [\"src-tauri/tauri.conf.json\", \"src-tauri/src/sidecar.rs\", \"src-tauri/src/autostart.rs\", \"src-tauri/src/main.rs\", \"packaging/sysmon-app.desktop.template\"], \"verifyCommand\": \"cargo test + cargo build --release + simulovany instalovany strom + prepis .desktop\", \"acceptanceCriteria\": [\"cargo test projde; nove testy pinuji hledani bundled demona i should_rewrite\", \"cargo build --release projde\", \"z cargo run se stale spousti python3 -m sysmon_app\", \"ze simulovaneho instalovaneho stromu se spusti bundled demon a /stats odpovi\", \"existujici .desktop s vyvojovou cestou se z instalovane cesty prepsise; z target/ ne\", \"tauri.conf ma productName sysmon-app, bundle.active true, targets deb/rpm/appimage a resources na packaging/daemon\"]}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Instalátory a kontejnerové ověření",
+      "status": "pending",
+      "description": "**Goal:** cargo tauri build vyrobi .deb, .rpm a AppImage; .deb a .rpm se nainstaluji v cistych kontejnerech a jejich demon tam bezi.\n\n**Files:**\n- packaging/verify-package.sh\n- src-tauri/tauri.conf.json (jen pri potrebe opravy resources nebo zavislosti)\n\n**Acceptance Criteria:**\n- cargo tauri build --bundles deb,rpm,appimage projde\n- .deb se nainstaluje v debian:13; existuje binarka, bundled demon, desktop s Name=Sysmon a ikona\n- .rpm se nainstaluje ve fedora:42 se stejnou kontrolou\n- demon z nainstalovaneho balicku odpovi na /stats v obou kontejnerech\n- AppImage po --appimage-extract obsahuje stejny strom a Name=Sysmon\n- packaging/verify-package.sh je spustitelny a umi deb i rpm\n\n**Verify:** cargo tauri build + packaging/verify-package.sh deb ... + packaging/verify-package.sh rpm ... + AppImage extract\n\n```json:metadata\n{\"files\": [\"packaging/verify-package.sh\", \"src-tauri/tauri.conf.json\"], \"verifyCommand\": \"cargo tauri build + verify-package.sh deb/rpm + AppImage extract\", \"acceptanceCriteria\": [\"cargo tauri build --bundles deb,rpm,appimage projde\", \".deb se nainstaluje v debian:13; existuje binarka, bundled demon, desktop s Name=Sysmon a ikona\", \".rpm se nainstaluje ve fedora:42 se stejnou kontrolou\", \"demon z nainstalovaneho balicku odpovi na /stats v obou kontejnerech\", \"AppImage po --appimage-extract obsahuje stejny strom a Name=Sysmon\", \"packaging/verify-package.sh je spustitelny a umi deb i rpm\"]}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: PKGBUILD",
+      "status": "pending",
+      "description": "**Goal:** packaging/arch/PKGBUILD zbuildi a zabali stejny instalovany layout nativne pro Arch.\n\n**Files:**\n- packaging/arch/PKGBUILD\n- packaging/sysmon-app.desktop\n- .gitignore\n\n**Acceptance Criteria:**\n- makepkg -f v packaging/arch vyrobi sysmon-app-0.1.0-1-x86_64.pkg.tar.zst\n- balicek obsahuje /usr/bin/sysmon-app, /usr/lib/sysmon-app/daemon/sysmon-app-daemon (+ _internal), desktop a obe ikony\n- demon z rozbaleneho balicku odpovi na /stats\n- depends obsahuji webkit2gtk-4.1 a gtk3\n- build neinstaluje nic do systemu\n\n**Verify:** makepkg -f + bsdtar -tf + spusteni demona z fake rootu\n\n```json:metadata\n{\"files\": [\"packaging/arch/PKGBUILD\", \"packaging/sysmon-app.desktop\", \".gitignore\"], \"verifyCommand\": \"makepkg -f + bsdtar -tf + spusteni demona z fake rootu\", \"acceptanceCriteria\": [\"makepkg -f v packaging/arch vyrobi sysmon-app-0.1.0-1-x86_64.pkg.tar.zst\", \"balicek obsahuje /usr/bin/sysmon-app, /usr/lib/sysmon-app/daemon/sysmon-app-daemon (+ _internal), desktop a obe ikony\", \"demon z rozbaleneho balicku odpovi na /stats\", \"depends obsahuji webkit2gtk-4.1 a gtk3\", \"build neinstaluje nic do systemu\"]}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Měření paměti, README a end-to-end",
+      "status": "pending",
+      "description": "**Goal:** Zmerit pamet okna 60 min v realnem okne, zapsat cisla a dokoncit dokumentaci i zaverecne overeni.\n\n**Files:**\n- tools/__init__.py\n- tools/measure_memory.py\n- tests/test_measure_memory.py\n- README.md\n- docs/superpowers/plans/2026-10-17-faze-4-baleni.md\n\n**Acceptance Criteria:**\n- python3 tools/measure_memory.py --help projde bez nestandardni knihovny\n- python3 -m unittest tests.test_measure_memory -v projde; testy pinuji trend, mediany a klasifikaci\n- 60minutove mereni v realnem okne splni web slope <= 5 MB/h a delta <= 15 MB\n- namerena cisla jsou v planu a README\n- README popisuje instalaci, AppImage prerekvizitu, PKGBUILD, minimalni glibc a mereni pameti\n- cela Python sada projde (156 + nove testy)\n- cargo test a npm run typecheck projdou; ../sysmon je cisty\n\n**Verify:** unit testy + 60minutovy beh + README prikazy doslova + regresni sada\n\n```json:metadata\n{\"files\": [\"tools/__init__.py\", \"tools/measure_memory.py\", \"tests/test_measure_memory.py\", \"README.md\", \"docs/superpowers/plans/2026-10-17-faze-4-baleni.md\"], \"verifyCommand\": \"unit testy + 60minutovy beh + README prikazy doslova + regresni sada\", \"acceptanceCriteria\": [\"python3 tools/measure_memory.py --help projde bez nestandardni knihovny\", \"python3 -m unittest tests.test_measure_memory -v projde; testy pinuji trend, mediany a klasifikaci\", \"60minutove mereni v realnem okne splni web slope <= 5 MB/h a delta <= 15 MB\", \"namerena cisla jsou v planu a README\", \"README popisuje instalaci, AppImage prerekvizitu, PKGBUILD, minimalni glibc a mereni pameti\", \"cela Python sada projde (156 + nove testy)\", \"cargo test a npm run typecheck projdou; ../sysmon je cisty\"]}\n```",
+      "blockedBy": [
+        2,
+        3
+      ]
+    }
+  ],
+  "lastUpdated": "2026-10-17T22:40:00+02:00"
+}
