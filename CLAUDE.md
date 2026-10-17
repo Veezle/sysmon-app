@@ -32,8 +32,9 @@ a end-to-end ověření).
 **Fáze 2 (React frontend) hotová.** Návrh v
 `docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`, plán po úlohách
 v `docs/superpowers/plans/2026-10-16-faze-2-frontend.md`, průběh v `.tasks.json`
-vedle plánu, pravidla pro tasky v plánu („Pravidla pro každý task"). Pracuje se
-na větvi **`faze-2-frontend`**; `faze-1-demon` zůstává jako záchranná síť.
+vedle plánu, pravidla pro tasky v plánu („Pravidla pro každý task"). Fáze 2 je
+mergnutá do **`main`**; větve `faze-1-demon` a `faze-2-frontend` zůstávají jako
+záchranná síť.
 Hotový **Task 1** — sada se odpoutala od buildu: testy indexu a assetů čtou
 fixture adresář, sada má **143 testů** a projde i bez `sysmon_app/web/` (tehdy
 se build-závislé piny přeskočí). Hotový **Task 2** — `frontend/` (Vite 8.3.4 +
