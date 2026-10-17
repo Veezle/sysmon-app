@@ -329,9 +329,40 @@ Nech na disku **portabilní** artefakt: znovu spusť bez argumentu
 
 ```bash
 git add packaging/requirements-build.txt packaging/Dockerfile.daemon \
-  packaging/build-daemon.sh .gitignore
+  packaging/build-daemon.sh packaging/.dockerignore .gitignore
 git commit -m "fáze 4: PyInstaller onedir démona"
 ```
+
+> **Vědomé meze Tasku 1 (po recenzi kvality 2026-10-17):**
+> - souběžné buildy nejsou podporované (dva běhy sdílejí
+>   `packaging/daemon-build`); pro jednoho vývojáře vědomá mez;
+> - nekontroluje se čerstvost Vite buildu, jen existence `index.html`;
+>   Task 3 build frontendu stejně spouští znovu;
+> - tranzitivní PyPI závislosti PyInstalleru a digest `debian:13` nejsou
+>   pinované; pinovaný je PyInstaller a hash Dockerfile v tagu obrazu;
+> - `shellcheck` není na stroji, skript je ověřen `bash -n` a měřením.
+
+> **Uzavření Tasku 1 (2026-10-17) — hotovo, commity `598852e`, `4b5cec3`,
+> `bda3541`:**
+> - Výchozí build v `debian:13` (PyInstaller 6.22.3) → artefakt 22 MB;
+>   v `debian:13` bez Pythonu `/stats` vrací 16 klíčů a `/` SPA; lokálně
+>   totéž. `--host` build funguje na Archu.
+> - Determinismus: dva po sobě jdoucí container buildy daly stejný hash
+>   stromu bez `BUILD-INFO` (`a17efc31…`). Před opravou se hashe lišily;
+>   `PYTHONHASHSEED=0` je nosný, ne kosmetický.
+> - Chybové běhy (mrtvý Docker, chybějící frontend/requirements, špatné
+>   argumenty) → `rc=2` česky a **poslední dobrý artefakt zůstane**.
+> - Log má jeden řádek; `--network none`; kontrola `_internal`; root guard;
+>   `BUILD-INFO` nese mód, PyInstaller, commit a image ID.
+> - Recenze: shoda se zadáním PASS; kvalita APPROVED WITH ISSUES
+>   (neblokující) → cílené opravy → delta PASS bez blokujících nálezů.
+> - Orchestrátor ověřil sám: determinismus, zachování artefaktu při dvou
+>   chybových bězích, `debian:13` bez Pythonu, čistý `git status`
+>   a `../sysmon`.
+>
+> **Vědomé meze:** viz blok výše (souběžné buildy, čerstvost Vite buildu,
+> hash-pin PyPI závislostí a digest `debian:13`).
+
 ---
 
 ### Task 2: Bundled démon, bundle config a migrace autostartu

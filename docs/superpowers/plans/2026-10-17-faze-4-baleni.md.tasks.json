@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: PyInstaller onedir démona",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** packaging/build-daemon.sh zbuildi sysmon-app-daemon jako onedir se zabudovanym Vite buildem. Vychozi rezim buildi v debian:13 kontejneru (portabilni artefakt), --host dela nativni build pro Arch.\n\n**Files:**\n- packaging/requirements-build.txt\n- packaging/Dockerfile.daemon\n- packaging/build-daemon.sh\n- .gitignore\n\n**Acceptance Criteria:**\n- vychozi build skonci 0 a vytvori packaging/daemon/sysmon-app-daemon + _internal\n- binarka z vychoziho buildu bezi v debian:13 bez Pythonu a obslouzi /stats\n- --host zbuildi nativni variantu, ktera bezi na Archu\n- bez sysmon_app/web/index.html skonci 2 s ceskou vetou\n- bez Dockeru skonci vychozi rezim 2 s nabidkou --host\n- packaging/.venv, packaging/build, packaging/daemon, packaging/daemon-build nejsou v gitu\n\n**Verify:** build + curl na 18430 + Docker bez Pythonu + --host build\n\n```json:metadata\n{\"files\": [\"packaging/requirements-build.txt\", \"packaging/Dockerfile.daemon\", \"packaging/build-daemon.sh\", \".gitignore\"], \"verifyCommand\": \"build + curl na 18430 + Docker bez Pythonu + --host build\", \"acceptanceCriteria\": [\"vychozi build skonci 0 a vytvori packaging/daemon/sysmon-app-daemon + _internal\", \"binarka z vychoziho buildu bezi v debian:13 bez Pythonu a obslouzi /stats\", \"--host zbuildi nativni variantu, ktera bezi na Archu\", \"bez sysmon_app/web/index.html skonci 2 s ceskou vetou\", \"bez Dockeru skonci vychozi rezim 2 s nabidkou --host\", \"packaging/.venv, packaging/build, packaging/daemon, packaging/daemon-build nejsou v gitu\"]}\n```"
     },
     {
@@ -45,5 +45,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T23:05:00+02:00"
+  "lastUpdated": "2026-10-17T23:15:00+02:00"
 }
