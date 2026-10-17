@@ -107,7 +107,13 @@ přihlášení?“ (Ano/Ne), „Ano“ zapíše `.desktop` s `--hidden` a marker
 zabrání opakování; `--hidden` startuje bez okna (bez traye se okno ukáže);
 dvouvrstvý escape cest ověřen GLibem, selhání zápisu marker nezapíše
 a nabídka se zopakuje; **33 testů**, build i clippy čisté.
-**Další na řadě je Task 6:** jedna instance.
+Hotový **Task 6** — jedna instance: `tauri-plugin-single-instance` je první
+v řetězu, druhé spuštění předá argumenty existující instanci, ta zviditelní okno
+a druhá skončí (rc=0 za 56–65 ms); naměřeno 1 proces, 1 listener, 1 démon,
+`--hidden` okno se po druhém spuštění objeví v KWin; mutant bez pluginu
+nekončí (2 procesy). Vědomá mez: druhá instance spuštěná během startu první
+(okno ještě neexistuje) tiše nic nezviditelní. **33 testů**, build i clippy
+čisté. **Další na řadě je Task 7:** README po fázi 3.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 

@@ -46,7 +46,7 @@
     {
       "id": 5,
       "subject": "Task 6: Jedna instance",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Druhe spusteni zviditelni existujici okno a skonci; nevznikne druhy demon.\n\n**Files:**\n- src-tauri/src/main.rs\n\n**Acceptance Criteria:**\n- druhe spusteni skonci do ~2 s\n- nevznikne druhy sysmon_app ani listener\n- existujici okno se zviditelni (rucne)\n\n**Verify:** dve spusteni + pgrep/ss\n\n```json:metadata\n{\"files\": [\"src-tauri/src/main.rs\"], \"verifyCommand\": \"dve spusteni + pgrep/ss\", \"acceptanceCriteria\": [\"druhe spusteni skonci do ~2 s\", \"nevznikne druhy sysmon_app ani listener\", \"existujici okno se zviditelni (rucne)\"]}\n```",
       "blockedBy": [
         4
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T19:55:00+02:00"
+  "lastUpdated": "2026-10-17T20:36:52+02:00"
 }
