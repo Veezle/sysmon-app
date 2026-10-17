@@ -2496,6 +2496,74 @@ git add README.md
 git commit -m "docs: README po fazi 2 - build, zdrojak frontendu a co uz neplati"
 ```
 
+> **Uzavření Tasku 10 (2026-10-17) — hotovo, dva commity:** `bd8063f`
+> (přepsaný README) a `31b5f74` (status fáze 2 a verze Node). Spec recenze
+> ✅; kvalitativní ⚠️ se **2 blokujícími** nálezy (opraveny); delta ✅;
+> 10 neblokujících nálezů zapsáno níže.
+>
+> **Naměřená čísla (vše spuštěno doslova podle README):**
+> `npm ci && npm run build` → rc 0, `index-B3ABFkqn.css` +
+> `index-NczL2IAE.js`; `python3 -m unittest discover -s tests -t .` →
+> **156 testů OK** (29–30 s), s běžícím démonem na 8430 také OK, bez buildu
+> `OK (skipped=5)` (3 v `test_frontend_build.py`, 2 v `test_server.py`),
+> bez Chromu `OK (skipped=2)`. Chybějící build → přesná česká věta
+> s návodem, **rc=2**; build odebraný za běhu → `/` **503** se stejným
+> návodem. Obsazený port → česká věta, rc=2, 0 tracebacků. `Ctrl+C` pod
+> pty → `konec`, exit 0. Živě: `/` 200 `no-store`, oba hashované assety
+> 200 `immutable`, `icon.svg` 200 `no-store`, `/stats` JSON se 17 klíči,
+> `/events` rámce po **1,541 s a 1,548 s**. Dev server: `/stats` i `/events`
+> přes proxy na 8430. Konfigurace: výchozí seznamy a jejich **nahrazení**
+> celé, neznámý klíč → hláška s cestou, rc=2. Grep `kopie`, `mrtvá|token`
+> i `titulek` → nic.
+>
+> **Blokující nálezy a jejich oprava:**
+> - **README předbíhal dokončení fáze 2.** „fáze 1 a fáze 2 hotové“ bylo
+>   vyvratitelné: Task 11 (end-to-end ověření) byl `pending` a design spec
+>   podmiňuje „Hotovo znamená“ právě jím. Nově: „fáze 2 je implementovaná;
+>   zbývá závěrečné end-to-end ověření“.
+> - **Chyběla verze Node.** Vite 8.3.4 vyžaduje
+>   `^20.19.0 || >=22.12.0`; README uváděl jen `npm`. Doplněno přesně
+>   podle `node_modules/vite/package.json`.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - Sekce „Dočasný frontend“ je pryč; nahradila ji sekce „Frontend“
+>   (zdroj `frontend/`, build do ignorovaného `sysmon_app/web/`, dev proxy).
+> - Popis toku dat už netvrdí, že frontend polluje každých 1,5 s; uvádí
+>   SSE s pollingovou pojistkou.
+> - Doplněny cache hlavičky, runtime 503 a úplný výčet 16 klíčů kontraktu.
+>
+> **Vědomé meze:**
+> - Prerekvizity (Python/psutil/Node) stojí až za příkazy, které je
+>   potřebují; čtenář, který začne `npm ci`, se je dozví pozdě.
+> - `psutil` je uveden jen jako `pacman -S python-psutil` (Arch); jiné
+>   distribuce si musí poradit samy.
+> - Sekce Soukromí říká „vidí seznam procesů a portů“, ale snapshot
+>   obsahuje i hostname, uživatele, kontejnery, disky, GPU, baterii a síť;
+>   „není co chránit“ je příliš absolutní (správněji „není co ovládat“).
+> - **Titulek stránky zůstává „Sysmon“** (`frontend/index.html`), zatímco
+>   produkt se jmenuje `sysmon-app`. README o titulku už nic netvrdí;
+>   oprava titulku je produktová změna mimo Task 10.
+> - Počty (156 testů, `skipped=5`) a verze (Vite/React/TS) zestárnou;
+>   žijí i v `package.json`, ale README na ně neodkazuje.
+> - Rozpad `skipped=5` README nejmenuje (3 + 2 v různých souborech).
+> - Po změně frontendu README neříká, že démon na 8430 servíruje poslední
+>   **build** — změny uvidí až po `npm run build`.
+> - Konfigurační příklad je odsazený blok; prázdný řádek ho vizuálně
+>   rozdělí na dva bloky (obsah je validní TOML, ale kopírování je horší).
+> - `XDG_CONFIG_HOME` je jen popsaný, cesta
+>   `$XDG_CONFIG_HOME/sysmon-app/config.toml` není vypsaná.
+> - První věta slibuje „okno“, které vznikne až ve fázi 3 (status to
+>   ihned upřesňuje).
+> - **Po Tasku 11 je potřeba vrátit status na „fáze 2 hotová“**, až
+>   end-to-end ověření projde.
+>
+> **Poučení:** (1) tvrzení „hotovo“ v README musí odpovídat trackeru
+> **i definici hotového v designu** — jinak je vyvratitelné z repa;
+> (2) dokumentace musí uvádět verze nástrojů, které build skutečně
+> vyžaduje (`engines`), ne jen jméno nástroje; (3) prázdný řádek uvnitř
+> odsazeného Markdown bloku ho ukončí — ukázka se vyrenderuje jako dva
+> bloky a kopírování se rozbije. Zapsáno v `CLAUDE.md`.
+
 ---
 
 ### Task 11: End-to-end ověření fáze 2

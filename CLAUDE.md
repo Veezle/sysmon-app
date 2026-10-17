@@ -69,8 +69,12 @@ seznamů (0 childList mutací, tytéž uzly) a aktualizaci bez SSE; sada má
 **156 testů** (3 piny běží s buildem a Chromem, bez nich se přeskočí).
 Recenze odhalila, že fallback pin porovnával **dva samostatné běhy Chroma**,
 takže prošel i s vypnutým pollingem; opraveno měřením v rámci jednoho
-načtení (`first`/`later` + počet pollů). **Další na řadě je Task 10:**
-README po fázi 2.
+načtení (`first`/`later` + počet pollů). Hotový **Task 10** — README po fázi 2:
+build (`npm ci && npm run build`) jako krok před spuštěním, chování bez buildu
+(rc=2 i 503), SSE s pollingovou pojistkou, zdroj ve `frontend/`, build
+v `.gitignore`, verze Node `^20.19.0 || >=22.12.0`; každý příkaz z README byl
+spuštěn doslova. **Další na řadě je Task 11:** end-to-end ověření fáze 2 —
+karty proti 8420, telefon bez obnovení a naměřená čísla do plánu.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -405,6 +409,20 @@ Postup u jednoho tasku:
   `ea50030^` naměřeno **880** mutací. Když se referenční strom opraví,
   doslovné kritérium je nesplnitelné — do uzavření patří čísla proti
   `revize^`, ne tvrzení.
+- **„Hotovo“ v README musí odpovídat trackeru i definici hotového.** Task 10
+  napsal „fáze 2 hotové“, ale Task 11 (end-to-end ověření) byl `pending`
+  a design spec podmiňoval dokončení právě jím — tvrzení šlo z repa vyvrátit.
+  Formulace „implementovaná; zbývá závěrečné ověření“ je bezpečná; po
+  ověření se má status vrátit na „hotová“. Otázka: **co v tomhle repu
+  znamená „hotovo“ a kde je to napsané?**
+- **Dokumentace musí uvádět verze nástrojů, které build skutečně vyžaduje.**
+  „potřebuje `npm`“ nestačilo: Vite 8 má `engines` `^20.19.0 || >=22.12.0`
+  a čtenář na starším Node se zasekne. Verze se opisuje z `engines`
+  v `node_modules`, ne z paměti.
+- **Prázdný řádek ukončí odsazený Markdown blok.** Konfigurační ukázka
+  v README se kvůli prázdnému řádku vyrenderovala jako dva bloky; obsah
+  zůstal validní, ale kopírování se rozbilo. Ukázky se mají držet v jednom
+  fenced bloku (` ```toml `), ne v odsazeném textu s vnitřními mezerami.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.

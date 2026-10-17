@@ -82,7 +82,7 @@
     {
       "id": 9,
       "subject": "Task 10: README po fázi 2",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** README říká pravdu: build je krok před spuštěním a frontend už není kopie ze `sysmonu`.\n\n**Files:**\n- Modify `README.md`\n\n**Acceptance Criteria:**\n- [ ] sekce o spuštění uvádí `npm ci && npm run build` a co se stane bez něj\n- [ ] sekce o dočasném frontendu je přepsaná (build, ne kopie)\n- [ ] věty o mrtvých tlačítkách a titulku „Sysmon“ jsou pryč\n- [ ] zmínka o `/events` a pojistce\n- [ ] každý příkaz z README projde, když se spustí doslova\n\n**Verify:** příkazy z README spuštěné doslova; `grep -n \"kopie\\|mrtvá\\|token\" README.md` → jen co platí\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -t .\", \"acceptanceCriteria\": [\"build jako krok před spuštěním\", \"žádná zmínka o kopii\", \"každé tvrzení ověřené\"]}\n```",
       "blockedBy": [
         7
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T13:55:01+02:00"
+  "lastUpdated": "2026-10-17T14:18:28+02:00"
 }
