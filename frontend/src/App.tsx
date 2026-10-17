@@ -1,10 +1,13 @@
 import { BatteryCard } from "./components/BatteryCard";
 import { CpuCard } from "./components/CpuCard";
 import { DiskCard } from "./components/DiskCard";
+import { DockerCard } from "./components/DockerCard";
 import { GpuCard } from "./components/GpuCard";
 import { Header } from "./components/Header";
 import { MemCard } from "./components/MemCard";
 import { NetworkCard } from "./components/NetworkCard";
+import { ProcessesCard } from "./components/ProcessesCard";
+import { ServicesCard } from "./components/ServicesCard";
 import { useSnapshot } from "./data/useSnapshot";
 import { describeError } from "./lib/format";
 
@@ -48,6 +51,12 @@ export default function App() {
       <BatteryCard battery={snapshot.battery} history={snapshot.battery_history} />
       <NetworkCard net={snapshot.net} />
       <DiskCard disk={snapshot.disk} nvmeTemp={snapshot.system.nvme_temp} />
+      <ServicesCard services={snapshot.services} />
+      <ProcessesCard
+        processes={snapshot.processes}
+        coreCount={snapshot.cpu_cores.length}
+      />
+      <DockerCard containers={snapshot.containers} />
     </>
   );
 }
