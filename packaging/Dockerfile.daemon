@@ -1,0 +1,17 @@
+# Portabilni build prostredi pro PyInstaller onedir demona.
+# Debian 13 je nejstarsi podporovany cil; binarka odtud nesmi mit novejsi
+# glibc symboly, nez ma cilove distro.
+FROM debian:13
+
+ARG PYINSTALLER_VERSION=6.22.3
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        python3 python3-psutil python3-venv ca-certificates binutils \
+        libpython3.13 \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m venv --system-site-packages /opt/pyinstaller \
+ && /opt/pyinstaller/bin/pip install --no-cache-dir \
+        "pyinstaller==${PYINSTALLER_VERSION}"
+
+ENTRYPOINT []
