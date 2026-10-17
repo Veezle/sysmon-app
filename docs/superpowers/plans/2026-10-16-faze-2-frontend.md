@@ -2576,6 +2576,38 @@ se aktualizuje bez obnovení stránky, a naměřená čísla zapsat do plánu.
   **tenhle jeden soubor smí implementátor editovat**, protože je to jeho
   vlastní plán; nic jiného pod `docs/` ne)
 
+> **Poznámky z uzavření Tasků 5–10 (závazné pro tento task):**
+> - **`--virtual-time-budget` proti živému SSE visí** (naměřeno opakovaně,
+>   `rc=124`). Plánový krok 2 ho používá pro oba porty; pro **8420**
+>   (polling) projde, pro **8430** použij CDP `Page.captureScreenshot` po
+>   reálném čekání, nebo dočasný harness s mrtvým `/events`.
+> - **`kill %1 %2` v neinteraktivním shellu nefunguje spolehlivě.** Procesy
+>   ukončuj explicitními PID a ověř, že porty 8420/8430 jsou volné.
+> - **Geometrii srovnávej při přirozené výšce obsahu.** `body` grid
+>   s `min-height:100vh` roztahuje řádky; použij `captureBeyondViewport`
+>   (nebo stejnou pevnou výšku u obou snímků). Lišit se smí jen živé hodnoty,
+>   ne popisky, pořadí karet ani rozměry sloupců.
+> - **Graf baterie se objeví až po ≥ 2 vzorcích** (`BATTERY_HISTORY_SEC =
+>   120`). Snímek 3 s po startu ho na obou portech nemá; pokud ho chceš
+>   porovnat, nech oba démoni běžet > 2,5 min (nebo použij harness s historií)
+>   a do uzavření napiš, co bylo naměřeno a co ne.
+> - **Piny z Tasku 9 musí běžet, ne skipovat.** Před Verify buildit
+>   (`cd frontend && npm ci && npm run build`) a ověřit, že
+>   `tests/test_frontend_build.py` hlásí 3× `ok`. Bez buildu je sada zelená
+>   jako `OK (skipped=5)` (3 piny + 2 build-závislé testy v `test_server.py`).
+> - **Kontrakt:** na tomto stroji `/stats` i `/events` vydávají **17 klíčů**
+>   (16 vždy + `cpu_temp`); porovnávej množiny, ne pořadí.
+> - **Telefon:** pokud není po ruce jiný stroj, ověř LAN adresou přes `curl`
+>   a aktualizaci bez obnovení přes CDP (hodnota `#cpu` se v jedné session
+>   změní). Co nebylo měřeno na skutečném telefonu, zapiš jako vědomou mez.
+> - **Po úspěšném ověření vrať status v README na „fáze 2 hotová“.** Task 10
+>   záměrně nechal „implementovaná; zbývá end-to-end ověření“; `README.md`
+>   není v `Files` tohoto tasku, takže to udělej v uzavření (orchestrátor)
+>   nebo si rozšíření výslovně odůvodni.
+> - **Známá nevyřešená věc:** titulek stránky je staticky „Sysmon“
+>   (`frontend/index.html`), zatímco produkt je `sysmon-app`. Rozhodni, zda
+>   do fáze 2 patří oprava, nebo to zapiš jako vědomou mez pro fázi 3–4.
+
 **Acceptance Criteria:**
 - [ ] `python3 -m unittest discover -s tests -t .` zelené **s buildem** (a testy
       z Tasku 9 opravdu běžely, ne skipped)
