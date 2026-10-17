@@ -2673,7 +2673,7 @@ git commit -m "plán: uzavření fáze 2 s naměřenými čísly"
 Do uzavření patří: počet testů, výsledek screenshotového srovnání, co se
 lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 
-> **Uzavření Tasku 11 (2026-10-17) — hotovo, tento commit:** end-to-end ověření
+> **Uzavření Tasku 11 (2026-10-17) — hotovo, commity `4cf161e` + `900cd12`:** end-to-end ověření
 > fáze 2. Naměřeno na `archlinux` (Node v22.23.2, Chrome headless), build
 > znovu spuštěn (`npm ci && npm run build`, Vite 8.3.4, 31 modulů,
 > `index.html` 0.45 kB, CSS `index-B3ABFkqn.css` 9.89 kB,
@@ -2700,16 +2700,15 @@ lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 > geometrie** — `id`, label, x/y/w/h jsou na obou portech totožné
 > (CPU 888×421 @ 30,349; GPU 436×421 @ 934,349; RAM/baterie/síť 436×464
 > @ y=786; disk/porty/procesy 436×457 @ y=1266; Docker 1340×488 @ y=1739).
-> Počty řádků v seznamech shodné: `#cores` 16, `#services-list` 5,
-> `#proc-list` 5, `#docker-containers` 1. Graf baterie se objevil na obou
+> Počty child elementů v seznamech shodné: `#cores` 16 (buňky jader),
+> `#services-list` 5, `#proc-list` 5, `#docker-containers` 1 (jedna
+> projektová skupina se 3 kontejnery). Graf baterie se objevil na obou
 > (`display: block`, canvas 390×52) — jeho přítomnost na obou portech
 > dokládá ≥ 2 vzorky historie v obou snapshotech.
 >
 > **Co se lišilo a proč:** pouze živé hodnoty (CPU, GPU, teploty, síťové
-> rate, pořadí procesů, stav baterie — ten se mezi snímky změnil
-> (`Nenabíjí se` na 8420 → `Vybíjí se` na 8430); následné čtení `/stats`
-> vracelo na obou portech stejná syrová data, takže jde o živý stav, ne
-> o rozdíl renderu) a **akční tlačítka**: 8420 má u procesů křížky `kill`
+> rate, pořadí procesů, stav baterie — mezi snímky `Nenabíjí se` na 8420
+> → `Vybíjí se` na 8430) a **akční tlačítka**: 8420 má u procesů křížky `kill`
 > a u kontejnerů restart, 8430 žádná — to je záměr Tasku 8, ne regrese.
 > **Titulek se liší:** 8420 má dynamický `veezle@archlinux — Sysmon`, 8430
 > statické `Sysmon` (viz vědomé meze).
@@ -2719,8 +2718,8 @@ lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 > cpu_temp, disk, gpu, host, loadavg, mem, net, processes, services, swap,
 > system, user`). První rámec `/events` na 8430 má tytéž klíče.
 > `curl -N --max-time 5 localhost:8430/events | grep -c "^data: "` → **3–4**
-> rámce (první rámec dorazí až dalším tikem ~0,86 s po přihlášení, další
-> každých `TICK_SEC = 1,5 s`).
+> rámce (první rámec dorazí až dalším tikem — fázově závisle 0–1,5 s,
+> naměřeno 0,86 s; další každých `TICK_SEC = 1,5 s`).
 > V jedné CDP session nad LAN URL: `esFrames` **4 → 11** za ~10,5 s
 > (7 rámců, přesně cadence 1,5 s), `statsFetches` zůstal **1** (žádný
 > polling), `performance.timeOrigin` konstantní, `navEntries = 1`.
@@ -2745,8 +2744,9 @@ lišilo a proč, jestli Task 9 piny běžely, a co zůstalo jako vědomá mez.
 > - **Titulek `Sysmon` vs `sysmon-app`:** statický titulek v
 >   `frontend/index.html`; oprava je kosmetická produktová změna mimo
 >   `Files` tohoto tasku a mimo jeho acceptance (karty se netýká). Rozhodnutí:
->   neopravovat v Tasku 11, zapsat jako větu pro fázi 3–4 (nebo samostatný
->   malý task); 8420 navíc titulek obohacuje o `uzivatel@host`, 8430 ne.
+>   neopravovat v Tasku 11, zapsáno jako vědomá mez tady a v `CLAUDE.md`
+>   (sekce Stav) pro fázi 3–4; 8420 navíc titulek obohacuje o
+>   `uzivatel@host`, 8430 ne.
 > - **Status v README** má orchestrátor vrátit na „fáze 2 hotová"; `README.md`
 >   není v `Files` tohoto tasku, takže ho implementátor needitoval.
 
