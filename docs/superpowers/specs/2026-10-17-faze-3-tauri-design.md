@@ -25,9 +25,10 @@ instalátory a měření paměti patří do fáze 4.
 ## Rozhodnutí
 
 1. **Tauri 2 bez vlastního frontendu.** Okno má `url` na běžícího démona;
-   `frontendDist` míří na minimální placeholder, který se nikdy nezobrazí.
-   Odpadá CSP, capabilities i bundlování Reactu do obalu. Data si webview tahá
-   přímo z démona přes HTTP/SSE.
+   `frontendDist` je přímo `http://127.0.0.1:8430/` — Tauri to dokumentuje jako
+   externí URL, ze které se nic nevkládá do binárky, takže žádný placeholder
+   nevzniká. Odpadá CSP, capabilities i bundlování Reactu do obalu. Data si
+   webview tahá přímo z démona přes HTTP/SSE.
 2. **Zdrojový démon jako potomek.** Tauri spouští `python3 -m sysmon_app`
    s `cwd` = kořen repa. `__main__.py` se nemění — démon o okně dál nic neví.
 3. **Osiřelý démon se řeší `PR_SET_PDEATHSIG`.** Návrh původně říkal „démon
@@ -60,10 +61,8 @@ instalátory a měření paměti patří do fáze 4.
 src-tauri/
   Cargo.toml            # tauri 2 (tray-icon, image-png), single-instance, libc, gtk
   build.rs              # tauri_build::build()
-  tauri.conf.json       # okno, URL démona, identifier, ikony, placeholder
+  tauri.conf.json       # frontendDist = URL démona, identifier, ikony
   icons/                # 32x32.png, 128x128.png — generované z icon.svg
-  placeholder/
-    index.html          # nikdy se nezobrazí; jen aby config měl frontendDist
   src/
     main.rs             # setup, tray, okno, event loop, orchestrace
     sidecar.rs          # spawn, PDEATHSIG, readiness, dozor, restart, ukončení
