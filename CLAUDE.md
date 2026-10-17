@@ -82,6 +82,14 @@ popisky, pořadí i geometrii a liší se jen živými hodnotami a akčními tla
 jako 8420; živá aktualizace bez obnovení naměřena v jedné CDP session přes LAN
 (`esFrames` 4 → 11, `statsFetches` zůstal 1). Skutečný telefon nebyl po ruce —
 LAN cesta je změřená jen z téhož stroje. **Fáze 2 je hotová.**
+
+**Fáze 3 (Tauri obal) běží.** Návrh v
+`docs/superpowers/specs/2026-10-17-faze-3-tauri-design.md`, plán po úlohách
+v `docs/superpowers/plans/2026-10-17-faze-3-tauri.md`, průběh v `.tasks.json`
+vedle plánu. Pracuje se na větvi **`faze-3-tauri`**. Hotový **Task 1** —
+`src-tauri/` (Tauri 2 bez vlastního frontendu, okno ukazuje na 8430) se
+zbuildí a otevře dashboard; 5 testů titulku, `Cargo.lock` verzovaný,
+`src-tauri/target/` a `src-tauri/gen/` ignorované.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -100,9 +108,11 @@ rozsah končil tracebackem), a u Tasku 12 byla **rozbitá ukázka `config.toml`*
 kterou měl README učit (a ověření fáze 1 zůstalo jen v hlášení, ne v repu).
 Opsaný kód se recenzuje jako nový.
 
-Fáze 3–4 (Tauri obal, balení a měření paměti) jsou zatím jen v návrhu.
-**Odloženo do fáze 3–4:** statický titulek `Sysmon` v `frontend/index.html`
-(produkt se jmenuje `sysmon-app`); kosmetická změna, ve fázi 2 se neopravovala.
+Fáze 3 (Tauri obal) běží; fáze 4 (balení a měření paměti) je zatím jen
+v návrhu.
+**Titulek je rozhodnutý ve fázi 3:** uživatelský název zůstává `Sysmon`
+(menu i titulek stránky), `sysmon-app` je technický název binárky a balíčku;
+`frontend/index.html` se nemění.
 
 ## Jak se tady pracuje
 

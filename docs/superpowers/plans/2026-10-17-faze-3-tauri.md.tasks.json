@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: Skelet src-tauri a okno na dashboard",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** src-tauri se zbuildi a otevre okno s dashboardem z rucne spusteneho demona.\n\n**Files:**\n- src-tauri/Cargo.toml\n- src-tauri/Cargo.lock\n- src-tauri/build.rs\n- src-tauri/tauri.conf.json\n- src-tauri/icons/32x32.png\n- src-tauri/icons/128x128.png\n- src-tauri/src/main.rs\n- src-tauri/src/ui.rs\n- .gitignore\n\n**Acceptance Criteria:**\n- cargo build projde\n- cargo test projde (5 testů titulku)\n- okno otevre URL a stranka ma 9 karet (Docker pri 1180x820 pod foldem, po zvetseni videt)\n- src-tauri/target ani src-tauri/gen nejsou v gitu\n- src-tauri/Cargo.lock je v gitu\n\n**Verify:** cargo build --manifest-path src-tauri/Cargo.toml && cargo test --manifest-path src-tauri/Cargo.toml\n\n```json:metadata\n{\"files\": [\"src-tauri/Cargo.toml\", \"src-tauri/Cargo.lock\", \"src-tauri/build.rs\", \"src-tauri/tauri.conf.json\", \"src-tauri/icons/32x32.png\", \"src-tauri/icons/128x128.png\", \"src-tauri/src/main.rs\", \"src-tauri/src/ui.rs\", \".gitignore\"], \"verifyCommand\": \"cargo build --manifest-path src-tauri/Cargo.toml && cargo test --manifest-path src-tauri/Cargo.toml\", \"acceptanceCriteria\": [\"cargo build projde\", \"cargo test projde (5 testů titulku)\", \"okno otevre URL a stranka ma 9 karet (Docker pri 1180x820 pod foldem, po zvetseni videt)\", \"src-tauri/target ani src-tauri/gen nejsou v gitu\", \"src-tauri/Cargo.lock je v gitu\"]}\n```"
     },
     {
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T16:50:17+02:00"
+  "lastUpdated": "2026-10-17T16:54:00+02:00"
 }
