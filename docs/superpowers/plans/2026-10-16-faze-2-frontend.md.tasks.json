@@ -55,7 +55,7 @@
     {
       "id": 6,
       "subject": "Task 7: Baterie (canvas), síť a disk",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Tři karty, z toho graf baterie imperativně na canvasu.\n\n**Files:**\n- Create `frontend/src/components/{BatteryCard,BatteryChart,NetworkCard,DiskCard}.tsx`\n- Modify `frontend/src/App.tsx`\n\n**Acceptance Criteria:**\n- [ ] graf se kreslí imperativně (ref + useEffect), ne z React elementů\n- [ ] překresluje se jen při změně historie\n- [ ] `battery.available === false` vykreslí dnešní text\n- [ ] karty odpovídají `sysmonu` (screenshot), `--dump-dom` obsahuje canvas\n\n**Verify:** build + screenshoty obou portů\n\n```json:metadata\n{\"files\": [\"frontend/src/components/BatteryCard.tsx\", \"frontend/src/components/BatteryChart.tsx\", \"frontend/src/components/NetworkCard.tsx\", \"frontend/src/components/DiskCard.tsx\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"canvas mimo React render\", \"překreslení jen při změně historie\", \"degradovaná baterie\"]}\n```",
       "blockedBy": [
         5
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T12:22:37+02:00"
+  "lastUpdated": "2026-10-17T12:58:50+02:00"
 }

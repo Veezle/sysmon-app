@@ -53,8 +53,14 @@ Hotový **Task 6** — CSS ze `sysmonu` přenesené beze změny až na styly mrt
 tlačítek (diff má přesně 5 hunků), hlavička a karty CPU/GPU/RAM jsou
 `memo`ované a dostávají jen svůj řez; naměřeno **0 childList mutací** za 6 s
 živého SSE. Mount point `#root` má `display: contents`, protože mřížka je na
-`body`; bez toho by karty byly 1/12 široké. **Další na řadě je Task 7:**
-baterie (imperativní canvas), síť a disk.
+`body`; bez toho by karty byly 1/12 široké. Hotový **Task 7** — karty baterie
+(imperativní canvas mimo React render), sítě a disku. Recenze odhalila
+**zděděnou vadu z `sysmonu`**: klíč překreslení grafu obsahoval jen délku
+a relativní čas, takže po naplnění 24h historie (720 vzorků) se přestal měnit
+a graf tiše zamrzl; opraveno podpisem hodnot (`902af03`). Naměřeno: 8
+identických pollů → 1 kreslení, 7 různých historií → 7 kreslení, 0 DOM mutací
+mezi snapshoty. **Další na řadě je Task 8:** služby, procesy, Docker — a konec
+mrtvých tlačítek.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -344,6 +350,17 @@ Postup u jednoho tasku:
   v Tasku 6 to byl rozdíl ~7 px na topbaru a vypadalo to jako regrese portu.
   Geometrie se měří na snímku s `captureBeyondViewport`, ne na roztahaném
   viewportu.
+- **Klíč „překresli jen při změně dat“ musí obsahovat hodnoty, ne jen délku
+  a čas.** Graf baterie v Tasku 7 měl klíč `délka | poslední t | velikost`;
+  backend posílá `t` relativní k prvnímu vzorku, takže po naplnění okna
+  (720 vzorků) zůstala délka i poslední `t` konstantní a měnila se jen `v` —
+  graf po ~24 h **tiše zamrzl**. Vada byla zděděná z `sysmonu` a port ji
+  převzal; oprava přidala do klíče podpis hodnot (`Math.imul`). Otázka na
+  každý cache klíč: **která změna dat ho nezmění?**
+- **Port přebírá i vady předlohy.** „V sysmonu to fungovalo“ není důkaz
+  správnosti — u grafu baterie se vada projevila až po 24 h běhu, což žádný
+  krátký test ani screenshot neukáže. Recenze se má ptát, jak se tvar dat
+  **mění v čase** (append-only okno, rotace deque), ne jen jak vypadá teď.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.

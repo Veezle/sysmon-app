@@ -1856,6 +1856,80 @@ git add frontend/src/components/BatteryCard.tsx \
 git commit -m "frontend: karty baterie (canvas), site a disku"
 ```
 
+> **Uzavření Tasku 7 (2026-10-17) — hotovo, dva commity:** `a59813f`
+> (karty baterie, sítě a disku) a `902af03` (oprava zamrznutí grafu po
+> naplnění historie). Spec recenze ✅; kvalitativní ⚠️ s **1 blokujícím**
+> nálezem (opraven) a 6 minor (zapsány níže); delta recenze ✅.
+>
+> **Naměřená čísla:** sada **153 testů** OK; build i typecheck rc 0 (JS
+> 229,45 kB, CSS beze změny 9,89 kB). Canvas: 390×52, **16 779** netransparentních
+> pixelů; `getContext`/`arc` volání rostou jen při skutečném překreslení.
+> Osm identických pollů se stejnou historií → **1** kreslení; sedm různých
+> historií → **7** kreslení. DPR 2: `scale()` i transformace `[[2,2],[2,2]]`,
+> žádné kumulování. Skrytý 0×0 canvas → 0 pixelů, `arc=0`; po zobrazení
+> `arc=1` a 11 319 pixelů. Živé SSE: mezi snapshoty **0 DOM mutací**; změny
+> jen při skutečné změně dat. Okrajové tvary (`percent` 0/100/150, `ac_online`
+> null, `status_label` prázdný, historie 0/1/2/3 bodů, `nvme_temp` 0/null,
+> disk unavailable, net 0 i 1e15) bez `NaN`/`undefined`/`Infinity`.
+> Screenshoty 8420/8430: baterie včetně grafu, síť i disk mají shodné
+> popisky, řádky, formáty a pořadí v mřížce; liší se jen čísla.
+>
+> **Blokující nález a jeho oprava (B1):** klíč překreslení
+> `length | poslední t | w×h` **ignoruje hodnoty**. Backend posílá `t`
+> relativní k prvnímu vzorku, takže po naplnění deque (`BATTERY_HISTORY_MAX
+> = 720`, interval 120 s) zůstává `length` i poslední `t` konstantní a mění
+> se jen `v` — graf po ~24 h **tiše zamrzne**. Naměřeno: dvě různá 720bodová
+> pole se stejným `last.t` → stejný hash pixelů, žádné překreslení; po
+> vynucené změně velikosti se jiná data vykreslila. Oprava přidala do klíče
+> 32bitový podpis všech `v` (`Math.imul(sig, 31) + p.v`); po ní se změněná
+> data překreslí (hash 3612330409 → 81831548) a identická ne (arc beze
+> změny). **Vada je zděděná z `../sysmon/static/app.js`** — port ji převzal
+> i s ní; recenze předlohy jako spec ji odhalila.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **`drawBatteryChart` nečte `getComputedStyle`** — plán to tvrdil, ale
+>   `app.js` má barvy napevno; portuje se skutečný kód.
+> - **Nedostupná baterie (`available:false` nebo `percent == null`) kartu
+>   nevykreslí** (`return null`), přesně jako dnešní `display:none`. Žádný
+>   nový text, žádná prázdná buňka mřížky.
+> - **Disk `available:false`** vykreslí „–“, prázdné suby a pruh 0 — dnešní
+>   chování jen vymezuje explicitně (reference by v tranzici nechala staré
+>   hodnoty).
+> - **`chartKey` je v `useRef`** uvnitř komponenty, ne modulový — remount
+>   nezanechá zastaralý klíč.
+> - **Klíč obsahuje podpis hodnot** (viz B1); `length`, `last.t` i velikost
+>   zůstaly.
+>
+> **Vědomé meze:**
+> - `memo` na kartách je fakticky dekorativní (nové identity objektů
+>   z `JSON.parse`), ale DOM zůstává stabilní — měřeno 0 mutací; měnit až
+>   s případným strukturálním sdílením v `useSnapshot`.
+> - `getBoundingClientRect()` se volá každý tik i bez překreslení — stejné
+>   jako `app.js`, jeden levný layout read za 1,5 s.
+> - Klíč neobsahuje `devicePixelRatio`; po přesunu okna mezi monitory
+>   s jiným DPR zůstane backing store ve starém rozlišení až do další
+>   změny historie/velikosti (max ~2 min).
+> - `chartKey` se zapíše před kontrolou `getContext("2d") === null`;
+>   kdyby kontext byl `null`, plátno zůstane prázdné a klíč zabrání
+>   dalšímu pokusu. Stav se v Chrome nepodařilo vyvolat.
+> - Disk `available:true` bez `percent/used/total` ukáže `0` a `0.0 B`,
+>   ne „–“; kolektor takový tvar nevyrábí (a port je robustnější než
+>   reference, která by na `percent.toFixed` spadla).
+> - Hlavička karty (`.row/.label/.val`) se opakuje v 6 komponentách;
+>   abstrahovat se vyplatí až po Tasku 8 (9 spotřebitelů), jako samostatný
+>   task se stejným screenshot pinem.
+> - Zamrznutí po 720 vzorcích **nemá trvalý pin** — frontend nemá runtime
+>   testy (YAGNI) a Task 9 měří DOM stabilitu, ne graf; ověřeno harnessem
+>   s dvěma 720bodovými poli, ne v sadě.
+>
+> **Poučení:** (1) klíč pro „překresli jen při změně dat“ musí obsahovat
+> **hodnoty**, ne jen délku a čas — relativní `t` se po naplnění okna
+> přestane měnit a graf tiše zamrzne; (2) port přebírá i vady předlohy —
+> recenzent musí měřit i to, co „fungovalo v sysmonu“, zvlášť když se tvar
+> dat v čase mění (append-only okno); (3) hash podpis je bezpečný i když
+> není bezkolizní: případná kolize znamená jedno vynechané překreslení, ne
+> trvalé zamrznutí. Zapsáno v `CLAUDE.md`.
+
 ---
 
 ### Task 8: Služby, procesy, Docker — a konec mrtvých tlačítek
