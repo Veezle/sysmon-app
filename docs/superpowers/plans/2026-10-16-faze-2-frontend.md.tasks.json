@@ -73,7 +73,7 @@
     {
       "id": 8,
       "subject": "Task 9: Piny, které měří produkt, ne komponenty",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Tři piny: build bez cizích originů, seznamy se nepřebudovávají (mutace + identita uzlů), a stránka se aktualizuje i bez SSE.\n\n**Files:**\n- Create `tests/test_frontend_build.py`\n\n**Acceptance Criteria:**\n- [ ] privacy pin: build neobsahuje `href=\"http`, `src=\"http`, `url(http`, `@import`\n- [ ] rebuild pin: po ~80 ticích s konstantním snapshotem nula childList mutací a tytéž uzly seznamů\n- [ ] fallback pin: s rozbitým `/events` a měnícím se `/stats` se stránka aktualizuje\n- [ ] bez buildu nebo Chroma se piny přeskočí (a v hlášení je vidět, jestli běžely)\n- [ ] proti starému frontendu rebuild pin spadne (důkaz, že měří)\n\n**Verify:** `python3 -m unittest tests.test_frontend_build -v` → 3 testy ok (ne skipped)\n\n```json:metadata\n{\"files\": [\"tests/test_frontend_build.py\"], \"verifyCommand\": \"python3 -m unittest tests.test_frontend_build -v\", \"acceptanceCriteria\": [\"build bez cizích originů\", \"nula mutací v seznamech\", \"tytéž uzly seznamů\", \"aktualizace i bez SSE\"]}\n```",
       "blockedBy": [
         7
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T13:22:12+02:00"
+  "lastUpdated": "2026-10-17T13:55:01+02:00"
 }

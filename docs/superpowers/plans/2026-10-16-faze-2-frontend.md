@@ -2367,6 +2367,84 @@ nemeri), a kdyz /events umlkne, stranka se aktualizuje pollingem. Bez buildu
 nebo Chromu se pin preskoci - a v hlaseni je videt, jestli bezel."
 ```
 
+> **Uzavření Tasku 9 (2026-10-17) — hotovo, dva commity:** `20991fc` (tři
+> piny) a `abd2df0` (oprava fallback pinu po recenzi zadání). Spec recenze
+> ⚠️ s **1 blokujícím** nálezem (opraven); delta ✅; kvalitativní ✅
+> (0 blokujících, 7 minor zapsáno níže).
+>
+> **Naměřená čísla:** `tests.test_frontend_build` → **3 testy `ok`,
+> 0 skipped**, 7,5 s. Celá sada **156 testů** OK (30 s); bez buildu
+> **156 OK (skipped=5)**; bez Chromu privacy `ok`, 2 skipped. Rebuild
+> harness: `ready=true mutations=0 same=true,true,true,true polls=78
+> total=79` (práh `MIN_POLLS=50`). Fallback harness v rámci jednoho
+> načtení: `first=1 later=7 polls=6 total=7` (práh
+> `MIN_FALLBACK_POLLS=3`). Deterministmus: 5× sekvenčně, 3× pod
+> `nice -n 19`, 3 instance souběžně, 2× `taskset -c 0 nice -n 19`,
+> 6 testů v jednom procesu — vše OK (7,5–9,5 s); úklid ověřen i při
+> selhání uprostřed (žádná vlákna, sockety, Chrome ani porty).
+> Privacy pin zabily čtyři injekce (`SRC="HTTPS://…`, `href="//…`,
+> `url(https://…)` v CSS, `@import`).
+>
+> **Blokující nález B1 a jeho oprava:** fallback pin porovnával **dva
+> samostatné běhy Chroma** (`dump_dom(4000)` vs `dump_dom(20000)`).
+> `CountingMonitor` inkrementuje při každém `/stats`, takže druhá
+> stránka dostala jinou hodnotu už při **prvním** fetchi — test prošel
+> i s **vypnutým pollingem** (`first=1 later=2`, žádný poll) a se
+> „zamrzlým“ `take()` (156 testů zelených). Oprava měří v **rámci
+> jednoho načtení**: harness zapíše `first`, `polls` a `later`, test
+> vyžaduje `first != later` **a** `polls >= 3`. Po opravě oba mutanty
+> padají (`first=1 later=1 polls=0`, resp. `polls=6`).
+>
+> **Odchylka od kritéria 5 (doložená):** „proti dnešnímu `sysmon`
+> frontendu rebuild pin spadne“ už **neplatí** — `sysmon` commit
+> `ea50030` („paměť dashboardu už neroste“) zavedl cache uzlů
+> (`coreNodes`, `svcRows`, `procRows`, `dockerRows`, `placeAt`), takže
+> dnešní HEAD `ec49413` dává `mutations=0` a pin by prošel. Proti
+> revizi **`ea50030^`** (před opravou) naměřeno **`mutations=880`,
+> `same=false,false,false,false`** → pin padá; proti dočasně
+> zmutovanému React buildu (`key={Math.random()}` v `Cores`) **624**
+> mutací → FAIL. Pin tedy měří, ale plánův předpoklad byl zastaralý.
+> Test doslova proti starému frontendu pustit **nelze**: `bundle_url()`
+> čeká Vite `assets/index-<hash>.js`, starý frontend má `static/app.js`;
+> důkaz proto běžel přes vanilla harness se stejným observerem.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **Dvě načtení → jedno načtení** (B1); viz výše.
+> - **Rebuild harness rozbíjí `/events`** (`BrokenEventsHandler`).
+>   Otevřené SSE zastaví `--virtual-time-budget` (Chrome čeká na
+>   otevřený fetch) — s normálním `Handler` test skončil
+>   `TimeoutExpired`.
+> - **Harness počítá `/stats` requesty.** `mutations=0` při nula ticích
+>   je planý pin; test vyžaduje ≥ 50 pollů za 120 s virtuálního času.
+> - **Docstring opraven:** privacy pin Chrome nepotřebuje.
+>
+> **Vědomé meze:**
+> - Důkaz proti starému frontendu je jen v hlášení/uzavření, ne v repu;
+>   starý frontend nejde spustit týmž testem kvůli názvu bundlu.
+> - Privacy pin prohlíží index a CSS, ne JS bundle; budoucí
+>   `fetch("https://…")` nebo `import("https://cdn…")` by prošel. Dnes
+>   jsou v bundlu jen React error URL a XML namespace.
+> - Fallback pin nepinuje, že se polling po obnovení SSE zastaví, ani že
+>   se aplikuje **každý** poll (mutant „aplikuj jen první“ padá, ale
+>   „aplikuj první a pak zamrzni“ by prošel). Levné zesílení:
+>   `later == total`.
+> - Rebuild pin běží přes polling, ne přes živé SSE (stejná render cesta
+>   `setState`, riziko rozchodu malé).
+> - Prahy: `POLL_MS` 1500→3000 rebuild pin zabije (39 < 50), fallback
+>   projde přesně na hranici (3); kadence není kritérium.
+> - Diakritika v komentářích (`netahá`, `planý`, `opakovaně`,
+>   `změřila`) — nit; v existujících testech se objevuje taky.
+>
+> **Poučení:** (1) pin, který porovnává **dva samostatné běhy**
+> prohlížeče, nepinuje aktualizaci v rámci jednoho načtení — každé
+> načtení dostane od počítadla novou hodnotu už prvním fetchem; měř
+> `first`/`later` a počet requestů v **jednom** načtení; (2) `mutations=0`
+> při nula ticích je planý pin — počet tiků patří do aserce, ne do
+> komentáře; (3) důkaz „pin měří“ musí mířit na revizi, která vadu
+> **má**; když se referenční strom mezitím opravil, doslovné kritérium
+> je nesplnitelné a do uzavření patří naměřená čísla proti `revize^`.
+> Zapsáno v `CLAUDE.md`.
+
 ---
 
 ### Task 10: README po fázi 2

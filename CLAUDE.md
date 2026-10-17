@@ -63,8 +63,14 @@ mezi snapshoty. Hotový **Task 8** — služby, procesy a Docker; token, akční
 hlavičky a `/action/` z frontendu zmizely a v celém UI nejsou žádná tlačítka
 (na 8420 jich `sysmon` má 8). Prázdné `watch_ports` se čte jako „Nesleduji
 žádné porty“ s `#svc-count` = „—“; naměřeno 9 karet, 0 konzolových warningů
-a 0 DOM mutací za 10 s konstantního snapshotu. **Další na řadě je Task 9:**
-piny, které měří produkt (privacy build, stabilita DOM, fallback bez SSE).
+a 0 DOM mutací za 10 s konstantního snapshotu. Hotový **Task 9** —
+`tests/test_frontend_build.py` pinuje build bez cizích originů, stabilitu
+seznamů (0 childList mutací, tytéž uzly) a aktualizaci bez SSE; sada má
+**156 testů** (3 piny běží s buildem a Chromem, bez nich se přeskočí).
+Recenze odhalila, že fallback pin porovnával **dva samostatné běhy Chroma**,
+takže prošel i s vypnutým pollingem; opraveno měřením v rámci jednoho
+načtení (`first`/`later` + počet pollů). **Další na řadě je Task 10:**
+README po fázi 2.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -381,6 +387,24 @@ Postup u jednoho tasku:
   buildu; fallback key musí být neprázdný i pro tvar, který kolektor „nikdy“
   nevydá. V Tasku 8 by kontejner bez `Names` i `ID` dal `"projekt::"`, a dva
   takové by splynuly. Dev build je pro takové scénáře levnější než produkční.
+- **Pin, který porovnává dva samostatné běhy prohlížeče, nepinuje
+  aktualizaci.** Fallback pin v Tasku 9 porovnal `dump_dom(4000)` proti
+  `dump_dom(20000)`; počítadlo dalo každé stránce jinou hodnotu už při
+  **prvním** fetchi, takže test prošel i s vypnutým pollingem
+  (`first=1 later=2`, 0 pollů). Aktualizace se měří v **jednom načtení**:
+  `first`/`later` a počet requestů ve stejném harnessu. Otázka: **kolik
+  načtení test potřebuje, aby mohl tvrdit „aktualizuje se“?**
+- **Nula mutací při nula ticích je planý pin.** Rebuild pin by prošel i na
+  frontendu, který se po prvním vykreslení zastaví. Harness proto počítá
+  `/stats` requesty a test vyžaduje minimum (naměřeno 78, práh 50).
+  Kritérium „po N ticích“ musí mít v testu pin i na **počet tiků**, ne jen
+  na jejich následek.
+- **Důkaz „pin měří“ musí mířit na revizi, která vadu má.** Kritérium Tasku 9
+  chtělo pustit rebuild pin proti dnešnímu `sysmon`; ten ale mezitím dostal
+  paměťovou opravu (`ea50030`), takže pin projde (`mutations=0`). Proti
+  `ea50030^` naměřeno **880** mutací. Když se referenční strom opraví,
+  doslovné kritérium je nesplnitelné — do uzavření patří čísla proti
+  `revize^`, ne tvrzení.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
