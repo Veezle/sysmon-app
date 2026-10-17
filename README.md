@@ -58,11 +58,15 @@ Zavřením okna aplikace neskončí — jen se schová do traye. Tray menu má
 „Otevřít dashboard“ a „Ukončit“. V prostředí bez StatusNotifier watchera se
 tray nevytvoří a zavření okna aplikaci ukončí. Spuštění s `--hidden` začne jen
 v trayi (bez traye se okno ukáže); tuhle volbu používá autostart, který se
-nabídne při prvním spuštění.
+nabídne při prvním spuštění. Vědomá mez fáze 3: `.desktop` zapsaný autostartem
+nenastavuje pracovní adresář, takže po přihlášení aplikace démona ze zdrojů
+nenajde, pokud už na 8430 neběží. Autostart je proto v této fázi funkční jen
+s už běžícím démonem; ruční spuštění z kořene repa tuhle podmínku nemá.
 
-Démon se v této fázi spouští ze zdrojů (`python3 -m sysmon_app`), takže
-aplikace musí běžet z kořene repa. PyInstaller binárka, `.deb`/`.rpm`/AppImage
-a instalované cesty patří do fáze 4.
+Démon se v této fázi spouští ze zdrojů (`python3 -m sysmon_app`). Aplikace musí
+běžet z kořene repa, jen když má démona sama spustit — tedy když na 8430 nic
+neposlouchá; s běžícím démonem jde spustit i odjinud. PyInstaller binárka,
+`.deb`/`.rpm`/AppImage a instalované cesty patří do fáze 4.
 
 ## Co démon vydává
 
