@@ -3,37 +3,60 @@
 Dashboard systémových metrik pro Linux — jako okno i jako stránka na telefonu.
 Druhý, samostatný produkt vedle `sysmon`; ten se nemění.
 
-**Stav: fáze 1 (démon).** Okno, instalátory a nový frontend přijdou v dalších
-fázích. Návrh je v `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`.
+**Stav: fáze 1 (démon) a fáze 2 (React frontend) hotové.** Tauri okno, balení
+a měření paměti (fáze 3–4) jsou zatím jen v návrhu. Návrhy:
+`docs/superpowers/specs/2026-10-15-sysmon-app-design.md` a
+`docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`.
 
 ## Spuštění démona
 
+Zdroj frontendu je ve `frontend/` a démon servíruje až jeho build. Nejdřív ho
+tedy zbuildi:
+
+    cd frontend
+    npm ci
+    npm run build
+    cd ..
+
+Pak spusť démona:
+
     python3 -m sysmon_app
+
+Když build chybí, démon nezačne: vypíše
+`Frontend není zbuilděný (<cesta>/sysmon_app/web/index.html neexistuje).`
+s návodem `npm ci && npm run build` a skončí s kódem 2. Když build zmizí
+za běhu, `/` odpoví `503` se stejným návodem.
 
 Poslouchá na `0.0.0.0:8430` a v prohlížeči je na <http://localhost:8430>.
 Potřebuje **Python 3.11 a novější** (konfiguraci čte stdlib `tomllib`).
-Závislost je jen `psutil` (`pacman -S python-psutil`).
+Jediná Python závislost je `psutil` (`pacman -S python-psutil`); build
+frontendu potřebuje `npm`.
 
 Port je **8430**, ne 8420 — `sysmon` má 8420 a oba mají běžet vedle sebe.
 Ukončuje se `Ctrl+C`.
 
-`--host` a `--port` přebijí konfiguraci. Když je port obsazený, démon to napíše
+`--host` a `--port` přebijí konfiguraci; `python3 -m sysmon_app --help` vypíše
+oba přepínače i s výchozími hodnotami. Když je port obsazený, démon to napíše
 česky a skončí — ne tracebackem.
 
 ## Co démon vydává
 
 | Cesta | Co vrací |
 |---|---|
-| `GET /` | stránka dashboardu |
-| `GET /static/<soubor>` | `style.css`, `app.js`, `icon.svg` |
+| `GET /` | stránka dashboardu (build), `Cache-Control: no-store` |
+| `GET /static/assets/index-<hash>.js` a `.css` | hashované assety buildu, `Cache-Control: immutable` |
+| `GET /static/icon.svg` | ikona, `Cache-Control: no-store` |
 | `GET /stats` | JSON snapshot |
 | `GET /events` | SSE proud snapshotů, jeden nový zhruba každých 1,5 s |
 
 `/stats` i `/events` vydávají **tentýž kontrakt snapshotu** — vždy 16 klíčů
-(`host`, `cpu`, `mem`, `swap`, `disk`, `net`, `processes`, `services`,
-`containers`, …) a k tomu `cpu_temp`, ale jen když ho stroj umí přečíst.
-Dnešní frontend odebírá `/stats` každých 1,5 s; proud `/events` je hotový
-a připravený pro fázi 2.
+(`host`, `user`, `cpu`, `cpu_cores`, `mem`, `swap`, `loadavg`, `disk`,
+`processes`, `system`, `gpu`, `battery`, `battery_history`, `net`, `services`,
+`containers`) a k tomu `cpu_temp`, ale jen když ho stroj umí přečíst.
+
+Frontend vezme první snapshot z `/stats` a pak poslouchá `/events`. Když 4,5 s
+nepřijde žádný rámec, přepne na polling `/stats` každých 1,5 s a stavová tečka
+zežloutne (`live: false`); po dalším rámci se polling vypne a tečka zezelená.
 
 ## Konfigurace
 
@@ -68,32 +91,23 @@ Autentizace tu žádná není a ani být nemá — není co chránit: produkt ne
 
 ## Testy
 
-    python3 -m unittest discover -s tests -t . -v
+    python3 -m unittest discover -s tests -t .
 
-Sada má **141 testů** a nepotřebuje volný port 8430 — projde i s běžícím
-démonem na 8430 i na 8420.
+Sada má **156 testů** a nepotřebuje volný port 8430 — projde i s běžícím
+démonem na 8430. Bez buildu je zelená (`OK (skipped=5)`): piny závislé na
+buildu se přeskočí. Piny v `tests/test_frontend_build.py` potřebují build
+a dva z nich navíc headless Chrome (`google-chrome-stable` nebo `chromium`).
 
-## Dočasný frontend
+## Frontend
 
-`sysmon_app/web/` je **kopie dnešního frontendu ze `sysmonu`** a slouží jen
-k ověření démona — kontrakt snapshotu se nemění, takže stará UI musí fungovat
-proti novému démonu. Fáze 2 ji nahradí Reactem.
+Zdroj je ve `frontend/` (Vite 8.3.4, React 19.3.1, TypeScript 5.9.3) a build
+jde do `sysmon_app/web/`, který je v `.gitignore`. `sysmon_app/web/` je tedy
+výstup buildu, ne zdroj.
 
-Kopie je věrná i v maličkostech: i titulek stránky zůstal ze `sysmonu`
-(`<uživatel>@<stroj> — Sysmon`), takže kdo pustí oba produkty vedle sebe,
-rozezná je podle portu v adrese, ne podle titulku. Fáze 2 ho vymění spolu
-s frontendem.
+Pro vývoj běží démon na 8430 a vedle něj Vite dev server:
 
-Pozor: tlačítka na ukončení procesu a restart kontejneru v téhle kopii jsou
-**mrtvá**. `sysmon-app` nemá routy `/action/*` a nemá ani token, ze kterého
-`app.js` skládá hlavičku. Bez tokenu se požadavek vůbec neodešle a kliknutí
-skončí jen hláškou:
+    cd frontend
+    npm run dev
 
-> Chybí token — otevři dashboard s ?token=… (token je v ~/.config/sysmon/token).
-
-To je odkaz na soubor i na funkci, které tu záměrně nejsou — a kdo ho poslechne
-a otevře stránku s `?token=…` (třeba tím ze `sysmonu`), tomu si `app.js` token
-uloží a `POST /action/kill` **odešle**: server odpoví `501 Unsupported method`
-(nemá `do_POST`) a tělo odpovědi není JSON, takže `await r.json()` spadne
-a uživatel uvidí „Chyba: …". Ať se klikne jakkoli, nic se neprovede — je to
-očekávané, ne chyba; fáze 2 ta tlačítka odstraní.
+Dev server proxyuje `/stats` a `/events` na démona, takže se po každé změně
+nemusí buildit. Frontend jen zobrazuje data a žádné akce neposílá.
