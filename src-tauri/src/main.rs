@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicBool;
 use tauri::Manager;
 
 fn main() {
+    gtk::glib::set_prgname(Some("Sysmon"));
     tauri::Builder::default()
         .setup(|app| {
             let handle = loop {
@@ -24,7 +25,8 @@ fn main() {
             };
             app.manage(handle);
 
-            let tray_ok = ui::create_tray(app.handle()).is_ok();
+            let tray_ok = ui::status_notifier_available()
+                && ui::create_tray(app.handle()).is_ok();
             app.manage(ui::TrayAvailable(AtomicBool::new(tray_ok)));
 
             if let Err(err) = ui::create_main_window(app.handle(), false) {

@@ -63,6 +63,58 @@ pub fn tray_available(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+/// Tray má smysl vytvářet jen tam, kde na session busu běží StatusNotifier
+/// watcher a má registrovaného hosta. AppIndicator sám chybu nevrátí, takže bez
+/// téhle kontroly by se okno skrylo do neexistující ikony a aplikace by
+/// zůstala běžet bez cesty zpět.
+pub fn status_notifier_available() -> bool {
+    use gtk::gio;
+
+    let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, None::<&gio::Cancellable>) else {
+        return false;
+    };
+    let watcher_owned = bus
+        .call_sync(
+            Some("org.freedesktop.DBus"),
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "NameHasOwner",
+            Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
+            Some(gtk::glib::VariantTy::new("(b)").expect("platný signatur")),
+            gio::DBusCallFlags::NONE,
+            -1,
+            None::<&gio::Cancellable>,
+        )
+        .ok()
+        .and_then(|reply| reply.get::<(bool,)>())
+        .map(|(owned,)| owned)
+        .unwrap_or(false);
+    if !watcher_owned {
+        return false;
+    }
+    // Když vlastnost nejde přečíst (starší watcher), bere se watcher jako
+    // dostačující.
+    bus.call_sync(
+        Some("org.kde.StatusNotifierWatcher"),
+        "/StatusNotifierWatcher",
+        "org.freedesktop.DBus.Properties",
+        "Get",
+        Some(&(
+            "org.kde.StatusNotifierWatcher",
+            "IsStatusNotifierHostRegistered",
+        )
+            .to_variant()),
+        Some(gtk::glib::VariantTy::new("(v)").expect("platný signatur")),
+        gio::DBusCallFlags::NONE,
+        -1,
+        None::<&gio::Cancellable>,
+    )
+    .ok()
+    .and_then(|reply| reply.get::<(gtk::glib::Variant,)>())
+    .and_then(|(value,)| value.get::<bool>())
+    .unwrap_or(true)
+}
+
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Otevřít dashboard", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Ukončit", true, None::<&str>)?;
