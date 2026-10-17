@@ -46,7 +46,7 @@
     {
       "id": 5,
       "subject": "Task 6: Vzhled — CSS, hlavička a karty CPU, GPU, RAM",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Port vzhledu: CSS ze `sysmonu` bez stylů mrtvých tlačítek, hlavička a tři karty.\n\n**Files:**\n- Create `frontend/src/styles/style.css`, `components/{Header,CpuCard,Cores,GpuCard,MemCard,Bar}.tsx`\n- Modify `frontend/src/App.tsx`, `frontend/src/main.tsx`\n\n**Acceptance Criteria:**\n- [ ] CSS 1:1 až na odstraněné styly mrtvých tlačítek a zúžené mřížky (`diff` ukáže jen ty)\n- [ ] karty memoované, seznamy se stabilními `key`, mění se jen text/šířka/barva\n- [ ] žádná animace width/height/box-shadow na prvcích měněných každý tik\n- [ ] karty odpovídají `sysmonu` na 8420 (screenshot)\n\n**Verify:** build + oba démoni + screenshoty 8420/8430 prohlédnuté\n\n```json:metadata\n{\"files\": [\"frontend/src/styles/style.css\", \"frontend/src/components/Header.tsx\", \"frontend/src/components/CpuCard.tsx\", \"frontend/src/components/Cores.tsx\", \"frontend/src/components/GpuCard.tsx\", \"frontend/src/components/MemCard.tsx\", \"frontend/src/App.tsx\"], \"verifyCommand\": \"cd frontend && npm run build\", \"acceptanceCriteria\": [\"CSS 1:1 bez stylů mrtvých tlačítek\", \"memo a stabilní key\", \"karty odpovídají sysmonu\"]}\n```",
       "blockedBy": [
         4
@@ -99,5 +99,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T10:55:36+02:00"
+  "lastUpdated": "2026-10-17T12:22:37+02:00"
 }

@@ -1707,6 +1707,66 @@ CSS se prenasi beze zmeny az na styly mrtvych tlacitek; karty jsou memoovane,
 seznamy maji stabilni key a meni se jen text, sirka pruhu a barva."
 ```
 
+> **Uzavření Tasku 6 (2026-10-17) — hotovo, commit `a0b385c`:** CSS port,
+> hlavička a karty CPU/GPU/RAM. Spec recenze ✅ (0 blokujících); kvalitativní
+> ✅ (0 blokujících, 5 minor zapsáno níže jako vědomé meze).
+>
+> **Naměřená čísla:** sada **153 testů** OK; `npm run build` i `npm run
+> typecheck` rc 0 (CSS 9,89 kB, JS 224,87 kB). CSS diff proti
+> `../sysmon/static/style.css` má přesně 5 hunků a aplikace jen povolených
+> změn dala **byte-identický** soubor
+> (`sha256 fdfd5a6c1ba1049168f779d597a094c36b4d2db2ac8404267850ebe70d273f80`).
+> Markup: každé id (`cpu`, `cpu-bar`, `cpu-meta`, `cores`, `gpu*`, `mem*`,
+> `swap-sub`, `hostname`, `uptime`, `dot`) právě jednou, struktura shodná
+> s `../sysmon/templates/index.html`. Živé SSE 6 s: **0 childList mutací**,
+> `#cores` stále 16 dětí, první `.core` i `#cpu-card` tytéž objekty; mutace
+> jen `title`/`style`/text. Změna 1 → 6 jader: stávající uzel zůstal, přibylo
+> 5. `display: contents` na `#root`: computed `contents`; přepnutí na `block`
+> zhroutilo layout (topbar 1340 → 97 px). Mobil 375 px bez vodorovného
+> přetečení. Degradované tvary ověřeny znak po znaku (U+2014 „—“ vs U+2013
+> „–“, dvě mezery u `swap  —` i `  ·  ` u GPU). Chyba `/stats` 500 se starým
+> snapshotem: „poslední známá data · server vrátil 500“, karty zůstanou; po
+> návratu 200 text zmizí.
+>
+> **Co se změnilo proti předloze (a proč):**
+> - **`#root` vs mřížka `body`.** Vite mount point by byl jediný grid item
+>   a karty by byly 1/12 široké; `root.style.display = "contents"` v
+>   `main.tsx` to řeší bez nového pravidla v CSS (to by porušilo „diff jen
+>   s povolenými změnami“).
+> - **Markup používá `.row`, ne `.card-head`.** Předloha v plánu byla
+>   zastaralá; rozhoduje `../sysmon/templates/index.html` a CSS.
+> - **GPU nedostupné = „nedetekováno“**, ne `gpu.error` (kolektor `error`
+>   nevrací); `gpu.util == null` = „–“, nedostupné = „—“.
+> - **Chybové texty se mapují do češtiny** (`describeError`) místo `String(e)`;
+>   chyba se ukáže i se starým snapshotem.
+>
+> **Vědomé meze:**
+> - `memo` na kartách je dnes fakticky dekorativní: snapshot z `JSON.parse` má
+>   každý tik nové identity objektů, takže shallow compare neprojde. Kritérium
+>   „nepřebudovávají se“ je splněné na DOM (0 childList mutací); custom
+>   comparator by ušetřil jen práci nad ~16 prvky.
+> - `GPU · undefined`, pokud by `available: true` přišlo bez `vendor`; dnešní
+>   kolektor `vendor` v úspěšné větvi vždy nastaví a `app.js` se chová stejně.
+>   Hardening (`gpu.vendor ? … : "GPU"`) patří sem, až by tvar mohl nastat.
+> - `document.title` zůstává statické „Sysmon“; `app.js` ho přepisoval na
+>   `user@host — Sysmon`. Task 6 ho v mapě neměl (jen `#hostname`, `#uptime`,
+>   `#dot`) a název produktu se rozhoduje až s README/titulekem.
+> - `describeError` slévá všechny ne-HTTP chyby do „spojení se serverem
+>   selhalo“, i `SyntaxError` z `r.json()`. Uživatelsky přijatelné,
+>   diagnosticky chudší.
+> - Hlavička karty (`.row`/`.label`/`.val`) se opakuje ve třech komponentách;
+>   abstrahovat se vyplatí, až Task 7–8 přidají další karty — teď by to byla
+>   předčasná abstrakce a markup se musí držet 1:1.
+>
+> **Poučení:** (1) CSS, které počítá s přímými potomky `body`, se pod React
+> mount pointem tiše rozbije (karty 1/12 šířky) — `display: contents` na
+> mount pointu to řeší bez zásahu do portovaného CSS; (2) „karty se
+> nepřebudovávají“ se měří childList mutacemi a identitou uzlů, ne počtem
+> React renderů ani přítomností `memo`; (3) screenshot se srovnává při
+> přirozené výšce obsahu — v širokém viewportu s málo kartami `body` grid
+> roztahuje řádky a geometrie se rozejde bez zásahu do kódu.
+> Zapsáno v `CLAUDE.md`.
+
 ---
 
 ### Task 7: Baterie (canvas), síť a disk

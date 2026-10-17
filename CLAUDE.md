@@ -49,10 +49,12 @@ Pythonem; sada má **153 testů** a `npm run typecheck` hlídá tvary (keyof
 assertiony + degradovaný vzorek). Hotový **Task 5** — `useSnapshot` drží
 snapshot: první data z `/stats`, pak SSE; po 4,5 s ticha přepne na polling
 každých 1,5 s a stav `live: false`; `format.ts` portuje formátovací helpery.
-**Další na řadě je Task 6:** vzhled — CSS, hlavička a karty CPU/GPU/RAM.
-V zadání Tasku 6 jsou zapsané poznámky z Tasku 5 (chybový stav i se starým
-snapshotem, `coreColor`/barva `Bar`, `gpu.error` neexistuje, screenshot 8430
-přes CDP — `--virtual-time-budget` proti živému SSE visí).
+Hotový **Task 6** — CSS ze `sysmonu` přenesené beze změny až na styly mrtvých
+tlačítek (diff má přesně 5 hunků), hlavička a karty CPU/GPU/RAM jsou
+`memo`ované a dostávají jen svůj řez; naměřeno **0 childList mutací** za 6 s
+živého SSE. Mount point `#root` má `display: contents`, protože mřížka je na
+`body`; bez toho by karty byly 1/12 široké. **Další na řadě je Task 7:**
+baterie (imperativní canvas), síť a disk.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 
@@ -324,6 +326,24 @@ Postup u jednoho tasku:
   otevřený fetch, takže živý proud s tímto flagem nedumpne DOM (`rc=124`);
   mrtvá SSE větev flagem projde. Živá data se měří CDP v reálném čase, ne
   virtual-time budgetem.
+- **CSS, které počítá s přímými potomky `body`, se pod React mount pointem
+  tiše rozbije.** V Tasku 6 je mřížka na `body` a Vite přidává `#root`; ten se
+  stal jediným grid itemem, takže karty byly 1/12 široké (naměřeno: topbar
+  1340 → 97 px po přepnutí `#root` na `block`). `display: contents` na mount
+  pointu to vyřeší **bez zásahu do portovaného CSS** — kde je CSS 1:1
+  kritérium, je to jediná cesta. Otázka: **kdo je rodič grid itemů — `body`,
+  nebo mount point?**
+- **„Karty se nepřebudovávají“ se měří mutacemi a identitou uzlů, ne `memo`.**
+  Snapshot z `JSON.parse` má každý tik nové objekty, takže shallow compare
+  `memo` neprojde a karty se re-renderují — a přesto je DOM stabilní (Task 6:
+  0 childList mutací za 6 s živého SSE, tytéž `.core`). Přítomnost `memo`
+  v kódu ani počet renderů nic nedokazují; pin patří na DOM.
+- **Screenshot se srovnává při přirozené výšce obsahu.** `body` grid s
+  `min-height:100vh` roztahuje řádky (`align-content: stretch`), takže táž
+  stránka s málo kartami vypadá na 1400×1200 jinak než na přirozené výšce;
+  v Tasku 6 to byl rozdíl ~7 px na topbaru a vypadalo to jako regrese portu.
+  Geometrie se měří na snímku s `captureBeyondViewport`, ne na roztahaném
+  viewportu.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
