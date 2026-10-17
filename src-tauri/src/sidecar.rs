@@ -31,6 +31,25 @@ pub fn daemon_dir_ok(dir: &Path) -> bool {
     dir.join("sysmon_app").join("__main__.py").is_file()
 }
 
+/// Argumenty démona. Port se předává explicitně: okno je napevno na
+/// `127.0.0.1:8430`, takže i když má uživatel v `config.toml` jiný `port`,
+/// démon musí poslouchat tam, kam se okno připojuje.
+fn daemon_args() -> [String; 4] {
+    [
+        "-m".to_string(),
+        "sysmon_app".to_string(),
+        "--port".to_string(),
+        PORT.to_string(),
+    ]
+}
+
+/// Po `fork` se PPID dítěte musí rovnat PIDu, který ho vytvořil. Porovnávat
+/// proti 1 nestačí: `systemd --user` je subreaper, takže sirotek skončí pod
+/// ním, ne pod PID 1.
+fn parent_still_alive(actual_ppid: libc::pid_t, expected_parent: libc::pid_t) -> bool {
+    actual_ppid == expected_parent
+}
+
 pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
     if port_open() {
         return Ok(SidecarHandle {
@@ -78,21 +97,22 @@ fn spawn_daemon(
     cwd: &Path,
     stderr: &Arc<Mutex<VecDeque<String>>>,
 ) -> std::io::Result<Child> {
+    let parent_pid = std::process::id() as libc::pid_t;
     let mut cmd = Command::new("python3");
-    cmd.arg("-m")
-        .arg("sysmon_app")
+    cmd.args(daemon_args())
         .current_dir(cwd)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
     unsafe {
-        cmd.pre_exec(|| {
+        cmd.pre_exec(move || {
             if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            // Otec mohl zemřít dřív, než se prctl stihlo zapsat.
-            if libc::getppid() == 1 {
+            // Otec mohl zemřít dřív, než se prctl stihlo zapsat. Reparenting
+            // nemusí skončit na PID 1, proto se porovnává skutečné PPID.
+            if !parent_still_alive(libc::getppid(), parent_pid) {
                 libc::_exit(1);
             }
             Ok(())
@@ -187,12 +207,55 @@ mod tests {
 
     #[test]
     fn daemon_dir_requires_main_module() {
-        let dir = std::env::temp_dir().join("sysmon-app-test-daemon-dir");
-        let _ = std::fs::remove_dir_all(&dir);
-        assert!(!daemon_dir_ok(&dir));
-        std::fs::create_dir_all(dir.join("sysmon_app")).unwrap();
-        std::fs::write(dir.join("sysmon_app/__main__.py"), "").unwrap();
-        assert!(daemon_dir_ok(&dir));
-        let _ = std::fs::remove_dir_all(&dir);
+        let root = std::env::temp_dir().join("sysmon-app-test-daemon-dir");
+
+        let missing = root.join("missing");
+        let _ = std::fs::remove_dir_all(&missing);
+        assert!(!daemon_dir_ok(&missing), "neexistující adresář");
+
+        let empty_pkg = root.join("empty-pkg");
+        let _ = std::fs::remove_dir_all(&empty_pkg);
+        std::fs::create_dir_all(empty_pkg.join("sysmon_app")).unwrap();
+        assert!(!daemon_dir_ok(&empty_pkg), "sysmon_app/ bez __main__.py");
+
+        let file_pkg = root.join("file-pkg");
+        let _ = std::fs::remove_dir_all(&file_pkg);
+        std::fs::create_dir_all(&file_pkg).unwrap();
+        std::fs::write(file_pkg.join("sysmon_app"), "").unwrap();
+        assert!(!daemon_dir_ok(&file_pkg), "sysmon_app jako soubor");
+
+        let wrong_place = root.join("wrong-place");
+        let _ = std::fs::remove_dir_all(&wrong_place);
+        std::fs::create_dir_all(&wrong_place).unwrap();
+        std::fs::write(wrong_place.join("__main__.py"), "").unwrap();
+        assert!(!daemon_dir_ok(&wrong_place), "__main__.py v kořeni");
+
+        let complete = root.join("complete");
+        let _ = std::fs::remove_dir_all(&complete);
+        std::fs::create_dir_all(complete.join("sysmon_app")).unwrap();
+        std::fs::write(complete.join("sysmon_app/__main__.py"), "").unwrap();
+        assert!(daemon_dir_ok(&complete), "kompletní sysmon_app/__main__.py");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn parent_alive_accepts_the_spawning_pid() {
+        assert!(parent_still_alive(12345, 12345));
+    }
+
+    #[test]
+    fn subreaper_parent_is_not_the_spawning_pid() {
+        assert!(!parent_still_alive(1426, 12345));
+    }
+
+    #[test]
+    fn init_parent_is_not_the_spawning_pid() {
+        assert!(!parent_still_alive(1, 12345));
+    }
+
+    #[test]
+    fn daemon_args_force_the_window_port() {
+        assert_eq!(daemon_args(), ["-m", "sysmon_app", "--port", "8430"]);
     }
 }
