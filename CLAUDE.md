@@ -18,16 +18,28 @@ hlášky s diakritikou, komentáře bez (zděděný styl).
 
 ## Stav
 
-**Fáze 1 (démon) hotová** — všech 12 tasků. Návrh je v
-`docs/superpowers/specs/2026-10-15-sysmon-app-design.md`, plán po úlohách v
-`docs/superpowers/plans/2026-10-15-faze-1-demon.md`, průběh v `.tasks.json` vedle
-plánu, naměřená čísla k ověření fáze 1 v uzavření Tasku 12. Task 1 (skelet +
-`config.py`), Task 2 (`system`, `processes`), Task 3 (`net`, `disk`), Task 4
-(`ports`), Task 5 (`gpu`, `battery`), Task 6 (`docker`), Task 7 (`monitor` +
-kontrakt snapshotu), Task 7b (doplnění pokrytí kolektorů), Task 8 (`feed` — jeden
-sběrný cyklus pro N odběratelů), Task 9 (`server` — SPA a `/stats`), Task 10 (SSE
-proud na `/events`), Task 11 (`__main__` — spustitelný démon), Task 12 (`README`
-a end-to-end ověření). Sada má **141 testů**; `README.md` je poprvé v repu.
+**Fáze 1 (démon) hotová** — všech 12 tasků, sada tehdy 141 testů, `README.md` je
+v repu. Návrh je v `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`, plán
+po úlohách v `docs/superpowers/plans/2026-10-15-faze-1-demon.md`, naměřená čísla
+k ověření fáze 1 v uzavření Tasku 12. Task 1 (skelet + `config.py`), Task 2
+(`system`, `processes`), Task 3 (`net`, `disk`), Task 4 (`ports`), Task 5 (`gpu`,
+`battery`), Task 6 (`docker`), Task 7 (`monitor` + kontrakt snapshotu), Task 7b
+(doplnění pokrytí kolektorů), Task 8 (`feed` — jeden sběrný cyklus pro N
+odběratelů), Task 9 (`server` — SPA a `/stats`), Task 10 (SSE proud na
+`/events`), Task 11 (`__main__` — spustitelný démon), Task 12 (`README`
+a end-to-end ověření).
+
+**Fáze 2 (React frontend) běží.** Návrh v
+`docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`, plán po úlohách
+v `docs/superpowers/plans/2026-10-16-faze-2-frontend.md`, průběh v `.tasks.json`
+vedle plánu, pravidla pro tasky v plánu („Pravidla pro každý task"). Pracuje se
+na větvi **`faze-2-frontend`**; `faze-1-demon` zůstává jako záchranná síť.
+Hotový **Task 1** — sada se odpoutala od buildu: testy indexu a assetů čtou
+fixture adresář, sada má **143 testů** a projde i bez `sysmon_app/web/` (tehdy
+se build-závislé piny přeskočí). **Další na řadě je Task 2:** skelet `frontend/`
+(Vite + React + TS) a build do `sysmon_app/web/`, který se od té doby
+necommituje. `frontend/` zatím **neexistuje** — do Tasku 2 je jediná závislost
+projektu pořád jen `psutil`.
 
 Task 7b, Task 8, Task 9, Task 10, Task 11 i Task 12 měly v plánu **hotovou
 předlohu**,
@@ -69,12 +81,16 @@ Postup u jednoho tasku:
 
 **Zásady pro zadání každého subagenta:**
 
-- Nikdy necommituj na `main`; pracuje se na větvi `faze-1-demon`.
+- Nikdy necommituj na `main`; pracuje se na větvi `faze-2-frontend` (fáze 1
+  měla `faze-1-demon`, ta zůstává jako záchranná síť).
 - **Nikdy nesahat do `../sysmon`** — čte se z něj, nepíše.
 - `git add` **jen s explicitními cestami**, nikdy `-A` ani `.`. V stromu bývají
   necommitnuté dokumenty, které do cizího commitu nepatří.
 - Implementátor needituje nic pod `docs/` ani soubory z jiných tasků.
-- Žádné nové závislosti, žádný `pyproject.toml`, žádný build step.
+- Žádné nové **Python** závislosti a žádný `pyproject.toml`. Build step existuje
+  od fáze 2 jen ve `frontend/` (Vite) — nové závislosti smějí být pouze tam,
+  a žádná z nich nesmí být runtime závislost stažená z CDN: build musí zůstat
+  soběstačný.
 
 **Co se osvědčilo:**
 
@@ -218,6 +234,25 @@ Postup u jednoho tasku:
   o měření. Kdo ukončení měří signálem, ať si **nejdřív přečte
   `/proc/PID/status`**, nebo proces spustí pod pty (`script -qec "…" /dev/null`);
   pod pty naměřeno: `SIGINT` → `konec`, `COMMAND_EXIT_CODE=0`, port uvolněný.
+- **Pin, který měří vlastní konstantu, neměří produkt.** V Tasku 1 fáze 2
+  kontroloval pin na `index.html` čtyři vlastnosti **fixture, kterou si test sám
+  napsal** — a nic víc; mutant, kdy trasa `/` vůbec nezavolá `load_index()`
+  a pošle konstantní HTML, přežil **všech 141 testů**. Co chybělo: dvojče pinu
+  nad **skutečným buildem** (`skipUnless` na existenci `web/index.html`)
+  a **negativní kontrola**, že pin umí spadnout (`test_pin_fires_on_inline_script`)
+  — bez ní je pin, který nikdy nezapálí, nerozeznatelný od žádného pinu.
+  Otázka pro každý nový pin: **kterou mutantu by zabil?** Když žádnou, měří sebe.
+- **Když aserci vyřídí allow-list, cesta zůstane nepinovaná.** `assertIsNone(
+  load_static("../config.py"))` projde i s implementací, která kontrolu cesty
+  **vůbec nemá** — `.py` není v allow-listu přípon, takže `None` přijde dřív, než
+  se na cestu někdo podívá (naměřeno mutantem). Pin na cestu musí mířit na
+  soubor, který **existuje a má povolenou příponu**; jinak se dvakrát testuje
+  allow-list a cesta nikdy. Platí to i na testy, které vypadají, že „něco
+  kontrolují", protože vracejí `None`.
+- **Skener pinuje jen to, co skener opravdu vidí.** `re.findall(r"\son[a-z]+\s*=")`
+  nad celým dokumentem zapálí na běžné próze (` text only = 5 ` vypadá jako
+  `on…=` atribut). Atributy se hledají **uvnitř značek** (`<[a-z][^>]*>`), ne
+  v textu — jinak si pin vynutí přepisování nevinných slov místo kódu.
 
 **Ověřovací příkazy** jsou u každého tasku v plánu. Celá sada je
 `python3 -m unittest discover -s tests -t .`.
