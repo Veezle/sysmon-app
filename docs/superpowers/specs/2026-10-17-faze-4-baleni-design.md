@@ -29,7 +29,10 @@ snapshotu.
 1. **PyInstaller onedir, ne onefile.** Onedir startuje bez rozbalování do
    `/tmp` a chová se předvídatelně; onefile by při každém startu rozbaloval
    desítky MB. Build je samostatný skript, který předem vyžaduje hotový Vite
-   build.
+   build. **Portabilní artefakty se buildí v `debian:13` kontejneru**, protože
+   build na Archu vloží do zamrzlých extension modulů `GLIBC_2.44` a binárka
+   pak na Debianu 13 (glibc 2.41) neběží. `--host` přepínač dělá nativní build
+   pro Arch (používá ho `PKGBUILD`).
 2. **Démon se hledá relativně k binárce.** Instalovaný layout je
    `/usr/bin/sysmon-app` + `/usr/lib/sysmon-app/daemon/…`, takže
    `<exe>/../lib/sysmon-app/daemon/sysmon-app-daemon` funguje pro `.deb`,
@@ -88,22 +91,35 @@ packaging/daemon/  --Tauri resources-->  src-tauri/target/release/bundle/{deb,rp
 ```
 
 `packaging/build-daemon.sh` je jediné místo, které zná PyInstaller. Ověří
-existenci `sysmon_app/web/index.html`, vytvoří/aktualizuje venv, nainstaluje
-přesně pinovanou verzi z `packaging/requirements-build.txt` a zbuildí do
-`packaging/daemon/`. Při chybějícím frontendu skončí stejnou českou větou
-jako démon (`rc=2`), aby se chyba neprojevila až v instalátoru.
+existenci `sysmon_app/web/index.html` a podle režimu buď:
+
+- **výchozí (portabilní):** zbuildí obraz z `packaging/Dockerfile.daemon`
+  (`debian:13` + `python3-psutil` + pinovaný PyInstaller) a spustí v něm
+  build jako uživatel hostitele; výstup jde do `packaging/daemon/`;
+- **`--host` (nativní Arch):** použije venv s `--system-site-packages`, aby
+  viděl systémový `psutil`, a zbuildí nativně. Tuhle cestu používá
+  `PKGBUILD`.
+
+Při chybějícím frontendu skončí stejnou českou větou jako démon (`rc=2`),
+aby se chyba neprojevila až v instalátoru. Když výchozí režim nemá Docker,
+skončí českou větou s návodem `--host`.
 
 ### Portabilita
 
 Naměřeno na vývojovém stroji (`ldd 2.44`):
 
-- Tauri binárka vyžaduje nejvýše `GLIBC_2.39`.
-- `libpython3.14.so` a `psutil` vyžadují nejvýše `GLIBC_2.38`.
-- Debian 13 a Fedora 42 mají glibc 2.41, Ubuntu 24.04 má 2.39.
+- Tauri binárka vyžaduje nejvýše `GLIBC_2.39`; Debian 13 i Fedora 42 (2.41)
+  ji tedy unesou.
+- **Hostitelský PyInstaller build na Archu v Debianu 13 selže**:
+  bundlovaný `math.cpython-314-x86_64-linux-gnu.so` vyžaduje `GLIBC_2.44`
+  a Debian 13 má 2.41. Naměřeno, ne odhadnuto. Proto se démon buildí
+  v `debian:13` kontejneru.
+- Démon z kontejneru vyžaduje glibc podle Debianu 13; Arch (2.44) i Fedora 42
+  (2.41) jsou novější, takže ho unesou. Debian 12 (2.36) je mimo podporu
+  a README to řekne.
 
-Artefakty postavené na Archu proto poběží na Debianu 13+, Ubuntu 24.04+
-a Fedoře 42+. Debian 12 (glibc 2.36) je mimo podporu a README to řekne.
-Kontejnerové ověření je součást plánu, ne předpoklad.
+Kontejnerové ověření je součást plánu, ne předpoklad. `--host` build je
+určený jen pro Arch a `PKGBUILD`; neslibuje portabilitu.
 
 ### Co balíček neobsahuje
 
@@ -193,8 +209,9 @@ se jen zaloguje — nabídka se neopakuje, protože uživatel už jednou odpově
 - `makedepends=('rust' 'cargo' 'nodejs' 'npm' 'python')`.
 - `source=("$pkgname-$pkgver.tar.gz")`; tarball se vytváří před buildem
   pomocí `git archive --prefix=sysmon-app-$pkgver/`.
-- `build()` spustí `npm ci && npm run build`, `packaging/build-daemon.sh`
-  a `cargo build --release` (bez Tauri bundleru — Arch nepotřebuje .deb).
+- `build()` spustí `npm ci && npm run build`, `packaging/build-daemon.sh
+  --host` a `cargo build --release` (bez Tauri bundleru — Arch nepotřebuje
+  .deb a nepotřebuje Docker).
 - `package()` nainstaluje přesně layout výše, včetně desktop souboru
   a ikon.
 - Síť je potřeba při `npm ci`, `cargo fetch` a `pip install pyinstaller`;
@@ -262,7 +279,10 @@ a že matematika trendu sedí na syntetických datech (stdlib `unittest`,
 - **AppImage bez WebKitGTK nefunguje.** Webview se nenese; README to uvede
   jako prerekvizitu. Uvnitř kontejneru bez GTK se AppImage netestuje.
 - **GlIBC 2.39+.** Debian 12 a starší nejsou podporované. Není to vada, je
-  to hranice daná buildem na Archu.
+  to hranice daná buildem Tauri binárky na Archu a démona v Debianu 13.
+- **Docker je buildová prerekvizita portabilních balíčků.** Bez něj jde jen
+  `--host` build pro Arch, který se na jiných distribucích nespustí. README
+  to řekne; `PKGBUILD` Docker nepotřebuje.
 - **PyInstaller a Python 3.14.** Pinovaná verze musí 3.14 podporovat; když
   ne, build skript to řekne hned na začátku, ne až u zákazníka.
 - **Autostart přepisuje jen `.desktop`, který vypadá jako náš.** Cizí nebo

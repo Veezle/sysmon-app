@@ -39,11 +39,15 @@ Naměřeno na tomhle stroji, ať plán nestojí na předpokladech:
 - **WebKit:** `webkit2gtk-4.1 2.54.1` nainstalovaný (fáze 3).
 - **Docker:** 29.9.1 běží. Obrazy `debian:13` a `fedora:42` se při prvním
   ověření stáhnou ze sítě.
-- **glibc:** host 2.44; Tauri binárka vyžaduje nejvýše `GLIBC_2.39`,
-  `libpython3.14` a `psutil` nejvýše `GLIBC_2.38`. Debian 13 i Fedora 42
-  mají 2.41 → artefakty z Archu na nich poběží.
+- **glibc:** host 2.44; Tauri binárka vyžaduje nejvýše `GLIBC_2.39`, takže
+  Debian 13 i Fedora 42 (2.41) ji unesou. **Hostitelský PyInstaller build
+  na Archu ale v Debianu 13 selže** — naměřeno:
+  `math.cpython-314-x86_64-linux-gnu.so` vyžaduje `GLIBC_2.44`.
+  Proto se démon buildí v `debian:13` kontejneru; `--host` je jen pro Arch
+  a `PKGBUILD`.
 - **PyInstaller:** nejnovější 6.22.3; pinuje se v
-  `packaging/requirements-build.txt`.
+  `packaging/requirements-build.txt`. V kontejneru ho nese obraz
+  `packaging/Dockerfile.daemon`.
 - **Démon:** `sysmon_app/web/` po fázi 2 existuje, Python sada je 156 testů
   OK, `../sysmon` je čistý.
 
@@ -90,24 +94,30 @@ závislost produktu; do repa se necommituje.
 ### Task 1: PyInstaller onedir démona
 
 **Goal:** `packaging/build-daemon.sh` zbuildí `sysmon-app-daemon` jako onedir
-se zabudovaným Vite buildem, a ten funguje bez systémového Pythonu.
+se zabudovaným Vite buildem. Výchozí režim buildí v `debian:13` kontejneru
+(portabilní artefakt), `--host` dělá nativní build pro Arch.
 
 **Files:**
 - Create: `packaging/requirements-build.txt`,
-  `packaging/build-daemon.sh`
+  `packaging/Dockerfile.daemon`, `packaging/build-daemon.sh`
 - Modify: `.gitignore`
 
 **Acceptance Criteria:**
-- [ ] `packaging/build-daemon.sh` skončí `0` a vytvoří
+- [ ] `packaging/build-daemon.sh` (bez argumentu) skončí `0` a vytvoří
       `packaging/daemon/sysmon-app-daemon` + `packaging/daemon/_internal/`
+- [ ] binárka z výchozího buildu běží v `debian:13` kontejneru, kde není
+      žádný Python, a obslouží `/stats`
+- [ ] `packaging/build-daemon.sh --host` zbuildí nativní variantu, která
+      běží na Archu (pro `PKGBUILD`)
 - [ ] bez `sysmon_app/web/index.html` skript skončí `2` s českou větou
       a návodem `npm ci && npm run build`
-- [ ] binárka obslouží `/stats` (16+ klíčů), `/` (SPA) i `/events`
-- [ ] binárka běží v `debian:13` kontejneru, kde není žádný Python
-- [ ] `packaging/.venv/`, `packaging/build/`, `packaging/daemon/`
-      nejsou v gitu
+- [ ] bez Dockeru skončí výchozí režim `2` s českou větou a nabídkou
+      `--host`
+- [ ] `packaging/.venv/`, `packaging/build/`, `packaging/daemon/`,
+      `packaging/daemon-build/` nejsou v gitu
 
 **Verify:** `packaging/build-daemon.sh` + curl na 18430 + Docker bez Pythonu
++ `--host` build
 
 **Steps:**
 
@@ -119,19 +129,49 @@ se zabudovaným Vite buildem, a ten funguje bez systémového Pythonu.
 pyinstaller==6.22.3
 ```
 
-- [ ] **Step 2: Zapiš build skript**
+- [ ] **Step 2: Zapiš buildový obraz**
+
+`packaging/Dockerfile.daemon`:
+
+```dockerfile
+# Portabilni build prostredi pro PyInstaller onedir demona.
+# Debian 13 je nejstarsi podporovany cil; binarka odtud nesmi mit novejsi
+# glibc symboly, nez ma cilove distro.
+FROM debian:13
+
+ARG PYINSTALLER_VERSION=6.22.3
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        python3 python3-psutil python3-venv ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m venv --system-site-packages /opt/pyinstaller \
+ && /opt/pyinstaller/bin/pip install --no-cache-dir \
+        "pyinstaller==${PYINSTALLER_VERSION}"
+
+ENTRYPOINT []
+```
+
+- [ ] **Step 3: Zapiš build skript**
 
 `packaging/build-daemon.sh` (musí být spustitelný, `chmod +x`):
 
 ```bash
 #!/usr/bin/env bash
 # Zbuildi demona jako PyInstaller onedir do packaging/daemon/.
-# Vyžaduje hotovy Vite build (sysmon_app/web/index.html); sit je potreba
-# jen pri prvnim vytvoreni venv a instalaci pinovaneho PyInstalleru.
+# Vychozi rezim buildi v debian:13 kontejneru (portabilni artefakt).
+# --host dela nativni build pro Arch (PKGBUILD); ten neni portabilni.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+MODE=container
+case "${1:-}" in
+    --host) MODE=host ;;
+    "") ;;
+    *) echo "Neznámý argument: $1 (povoleno: --host)" >&2; exit 2 ;;
+esac
 
 if [ ! -f sysmon_app/web/index.html ]; then
     echo "Frontend není zbuilděný (sysmon_app/web/index.html neexistuje)." >&2
@@ -140,33 +180,76 @@ if [ ! -f sysmon_app/web/index.html ]; then
     exit 2
 fi
 
-if [ ! -x packaging/.venv/bin/python ]; then
-    python3 -m venv packaging/.venv
+PYINSTALLER_VERSION="$(sed -n 's/^pyinstaller==//p' packaging/requirements-build.txt)"
+if [ -z "$PYINSTALLER_VERSION" ]; then
+    echo "V packaging/requirements-build.txt chybí pin pyinstaller==…" >&2
+    exit 2
 fi
-packaging/.venv/bin/python -m pip install --quiet --disable-pip-version-check \
-    -r packaging/requirements-build.txt
 
 rm -rf packaging/build packaging/daemon-build packaging/daemon
 mkdir -p packaging/build
-packaging/.venv/bin/python -m PyInstaller \
-    --noconfirm --clean --onedir \
-    --name sysmon-app-daemon \
-    --distpath packaging/daemon-build \
-    --workpath packaging/build \
-    --specpath packaging/build \
-    --paths "$ROOT" \
-    --add-data "sysmon_app/web:sysmon_app/web" \
-    sysmon_app/__main__.py
+
+if [ "$MODE" = host ]; then
+    if [ ! -x packaging/.venv/bin/python ] || \
+       ! packaging/.venv/bin/python -c 'import psutil' >/dev/null 2>&1; then
+        rm -rf packaging/.venv
+        python3 -m venv --system-site-packages packaging/.venv
+    fi
+    packaging/.venv/bin/python -m pip install --quiet --disable-pip-version-check \
+        -r packaging/requirements-build.txt
+    PYTHON=packaging/.venv/bin/python
+    PATHS="$ROOT"
+    DATA="$ROOT/sysmon_app/web:sysmon_app/web"
+    DIST=packaging/daemon-build
+    WORK=packaging/build
+else
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "Docker není k dispozici. Pro nativní build na Archu použij --host." >&2
+        exit 2
+    fi
+    IMAGE="sysmon-app-daemon-build:debian13-py${PYINSTALLER_VERSION}"
+    if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+        docker build --quiet \
+            --build-arg "PYINSTALLER_VERSION=$PYINSTALLER_VERSION" \
+            -t "$IMAGE" -f packaging/Dockerfile.daemon packaging
+    fi
+    PYTHON=/opt/pyinstaller/bin/python
+    PATHS=/src
+    DATA=/src/sysmon_app/web:sysmon_app/web
+    DIST=/src/packaging/daemon-build
+    WORK=/src/packaging/build
+fi
+
+if [ "$MODE" = host ]; then
+    "$PYTHON" -m PyInstaller \
+        --noconfirm --clean --onedir \
+        --name sysmon-app-daemon \
+        --distpath "$DIST" --workpath "$WORK" --specpath "$WORK" \
+        --paths "$PATHS" --add-data "$DATA" \
+        sysmon_app/__main__.py
+else
+    docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        -e HOME=/tmp \
+        -v "$ROOT:/src" -w /src \
+        "$IMAGE" \
+        "$PYTHON" -m PyInstaller \
+            --noconfirm --clean --onedir \
+            --name sysmon-app-daemon \
+            --distpath "$DIST" --workpath "$WORK" --specpath "$WORK" \
+            --paths "$PATHS" --add-data "$DATA" \
+            sysmon_app/__main__.py
+fi
 
 mv packaging/daemon-build/sysmon-app-daemon packaging/daemon
 rmdir packaging/daemon-build
 test -x packaging/daemon/sysmon-app-daemon
-echo "Hotovo: packaging/daemon/sysmon-app-daemon"
+echo "Hotovo: packaging/daemon/sysmon-app-daemon ($MODE)"
 ```
 
-- [ ] **Step 3: Doplň `.gitignore`**
+- [ ] **Step 4: Doplň `.gitignore`**
 
-Na konec `.gitignore` přidej:
+Na konec `.gitignore` přidej (pokud tam ještě nejsou):
 
 ```text
 packaging/.venv/
@@ -178,9 +261,7 @@ packaging/arch/pkg/
 packaging/arch/*.tar.gz
 ```
 
-- [ ] **Step 4: Ověř chybovou cestu**
-
-Dočasně přesuň build frontendu a spusť skript:
+- [ ] **Step 5: Ověř chybovou cestu bez frontendu**
 
 ```bash
 mv sysmon_app/web /tmp/web-backup
@@ -188,11 +269,13 @@ packaging/build-daemon.sh; echo "rc=$?"
 mv /tmp/web-backup sysmon_app/web
 ```
 
-Očekávej `rc=2` a větu `Frontend není zbuilděný …`.
+Očekávej `rc=2` a větu `Frontend není zbuilděný …`. Když `/tmp/web-backup`
+už existuje, použij jiné jméno.
 
-- [ ] **Step 5: Zbuildi a ověř běžící démon**
+- [ ] **Step 6: Zbuildi portabilní variantu a ověř ji lokálně**
 
 ```bash
+cd frontend && npm ci && npm run build && cd ..
 packaging/build-daemon.sh
 packaging/daemon/sysmon-app-daemon --port 18430 &
 daemon_pid=$!
@@ -211,7 +294,7 @@ curl -fsS -N -m 3 http://127.0.0.1:18430/events | head -c 20 || true
 kill "$daemon_pid"
 ```
 
-- [ ] **Step 6: Ověř, že nepotřebuje systémový Python**
+- [ ] **Step 7: Ověř portabilitu v `debian:13` bez Pythonu**
 
 ```bash
 docker run --rm -d --name sysmon-daemon-check \
@@ -225,14 +308,30 @@ docker rm -f sysmon-daemon-check
 ```
 
 Kontejner `debian:13` žádný Python nemá; přesto musí `/stats` odpovědět.
+Když se image nestáhne kvůli síti, zapiš to jako vědomou mez; task pak není
+hotový, protože portabilita zůstává neověřená.
 
-- [ ] **Step 7: Commitni**
+- [ ] **Step 8: Ověř nativní `--host` build**
 
 ```bash
-git add packaging/requirements-build.txt packaging/build-daemon.sh .gitignore
-git commit -m "fáze 4: PyInstaller onedir démona"
+packaging/build-daemon.sh --host
+packaging/daemon/sysmon-app-daemon --port 18433 &
+daemon_pid=$!
+sleep 2
+curl -fsS http://127.0.0.1:18433/stats >/dev/null && echo "host OK"
+kill "$daemon_pid"
 ```
 
+Nech na disku **portabilní** artefakt: znovu spusť bez argumentu
+(`packaging/build-daemon.sh`), aby Task 2 a 3 pracovaly s Debianím buildem.
+
+- [ ] **Step 9: Commitni**
+
+```bash
+git add packaging/requirements-build.txt packaging/Dockerfile.daemon \
+  packaging/build-daemon.sh .gitignore
+git commit -m "fáze 4: PyInstaller onedir démona"
+```
 ---
 
 ### Task 2: Bundled démon, bundle config a migrace autostartu
@@ -858,14 +957,14 @@ pkgdesc="Dashboard systémových metrik pro Linux"
 arch=('x86_64')
 license=('custom')
 depends=('webkit2gtk-4.1' 'gtk3')
-makedepends=('rust' 'cargo' 'nodejs' 'npm' 'python')
+makedepends=('rust' 'cargo' 'nodejs' 'npm' 'python' 'python-psutil')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
     cd "$pkgname-$pkgver"
     ( cd frontend && npm ci && npm run build )
-    packaging/build-daemon.sh
+    packaging/build-daemon.sh --host
     cargo build --release --manifest-path src-tauri/Cargo.toml
 }
 
