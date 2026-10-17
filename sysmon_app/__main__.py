@@ -16,10 +16,11 @@ import errno
 import socket
 import sys
 
+from sysmon_app import server as server_modul
 from sysmon_app.config import Settings, load_settings
 from sysmon_app.feed import SnapshotFeed
 from sysmon_app.monitor import Monitor
-from sysmon_app.server import serve
+from sysmon_app.server import load_index, serve
 
 
 def _port_number(text):
@@ -102,6 +103,16 @@ def report_bind_error(exc, host, port):
         )
 
 
+def report_missing_build(web_dir):
+    """Chybejici build je uzivatelova situace - hlasi se vetou, ne tracebackem."""
+    print(
+        f"Frontend není zbuilděný ({web_dir / 'index.html'} neexistuje).\n"
+        f"Spusť v adresáři frontend:\n"
+        f"    npm ci && npm run build",
+        file=sys.stderr,
+    )
+
+
 def main(argv=None):
     try:
         settings = load_settings()
@@ -119,6 +130,10 @@ def main(argv=None):
 
     if config_error is not None:
         print(f"Chyba v konfiguraci: {config_error}", file=sys.stderr)
+        return 2
+
+    if load_index() is None:
+        report_missing_build(server_modul.WEB_DIR)
         return 2
 
     monitor = Monitor(settings)

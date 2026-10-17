@@ -396,6 +396,19 @@ class BrokenConfigTest(MainTestCase):
                 self.assertEqual(self.serve_calls, [])
                 self.assertEqual(self.monitors, [])
 
+    def test_missing_build_ends_with_a_sentence_and_the_command(self):
+        """Bez buildu nema smysl startovat - a nesmi to byt traceback."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(server_modul, "WEB_DIR", Path(tmp)):
+                code, out, err = self.run_main([])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn(str(Path(tmp) / "index.html"), err)
+        self.assertIn("npm ci && npm run build", err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(self.serve_calls, [])
+        self.assertEqual(self.monitors, [])
+
 
 class PortArgumentTest(MainTestCase):
     """`--port` je uzivatelsky vstup, takze konci vetou jako vsechno ostatni."""

@@ -2,7 +2,7 @@
 
 Routy:
     GET /              -> web/index.html
-    GET /static/<soubor> -> web/static/style.css, app.js, icon.svg
+    GET /static/<soubor> -> web/static/assets/index-<hash>.{js,css}, icon.svg
     GET /stats         -> JSON snapshot
     GET /events        -> SSE proud snapshotu
 
@@ -31,11 +31,25 @@ STATIC_TYPES = {
     ".svg": "image/svg+xml",
 }
 
+# Hashovane assety z Vite buildu se nikdy nemeni pod svym jmenem, takze se
+# mohou cachovat navzdy. Vsechno ostatni (index.html, ikona, style.css) jmeno
+# nemeni, ale obsah ano - tam cache znamena starou verzi po rebuildu.
+IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+HASHED_ASSET_DIR = "assets/"
+
+
+def cache_for(name):
+    """Cache-Control pro soubor z /static/ podle toho, jestli ma hash v ceste."""
+    return IMMUTABLE_CACHE if name.startswith(HASHED_ASSET_DIR) else "no-store"
+
 
 def load_index():
-    """Nacte web/index.html (UTF-8)."""
-    with open(WEB_DIR / INDEX_NAME, encoding="utf-8") as f:
-        return f.read()
+    """Nacte web/index.html (UTF-8), nebo None kdyz build chybi."""
+    try:
+        with open(WEB_DIR / INDEX_NAME, encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
 
 
 def load_static(name):
@@ -69,12 +83,12 @@ class Handler(BaseHTTPRequestHandler):
         """Cesta bez query stringu - routy se porovnavaji presne."""
         return self.path.partition("?")[0]
 
-    def _send(self, body, ctype, status=200):
+    def _send(self, body, ctype, status=200, cache="no-store"):
         data = body.encode() if isinstance(body, str) else body
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.end_headers()
         self.wfile.write(data)
 
@@ -95,13 +109,23 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/stats":
             self._send_json(self._snapshot_now())
         elif path in ("/", "/index.html"):
-            self._send(load_index(), "text/html; charset=utf-8")
+            index = load_index()
+            if index is None:
+                self._send(
+                    "Frontend není zbuilděný. Spusť v adresáři frontend:\n"
+                    "    npm ci && npm run build\n",
+                    "text/plain; charset=utf-8",
+                    status=503,
+                )
+            else:
+                self._send(index, "text/html; charset=utf-8")
         elif path.startswith(STATIC_PREFIX):
-            asset = load_static(path[len(STATIC_PREFIX):])
+            name = path[len(STATIC_PREFIX):]
+            asset = load_static(name)
             if asset is None:
                 self._send_empty(404)
             else:
-                self._send(asset[0], asset[1])
+                self._send(asset[0], asset[1], cache=cache_for(name))
         else:
             self._send_empty(404)
 

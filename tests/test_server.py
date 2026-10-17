@@ -412,6 +412,160 @@ class StatsTest(unittest.TestCase):
                 self.assertEqual(body, b"")
 
 
+class CacheHeadersTest(unittest.TestCase):
+    """Hashovany asset se muze cachovat navzdy, index ne."""
+
+    def setUp(self):
+        self.web = web_fixture.fake_web()
+        root, static, _index = self.web.__enter__()
+        self.addCleanup(self.web.__exit__, None, None, None)
+        self.patch_web = mock.patch.object(server, "WEB_DIR", root)
+        self.patch_static = mock.patch.object(server, "STATIC_DIR", static)
+        self.patch_web.start()
+        self.patch_static.start()
+        self.addCleanup(self.patch_web.stop)
+        self.addCleanup(self.patch_static.stop)
+        self.server, self.port = start_server()
+        self.addCleanup(self.server.shutdown)
+        self.addCleanup(self.server.server_close)
+
+    def get(self, path):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        self.addCleanup(conn.close)
+        conn.request("GET", path)
+        return conn.getresponse()
+
+    def test_hashed_asset_is_immutable(self):
+        response = self.get(f"/static/{web_fixture.ASSET_NAME}")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.getheader("Cache-Control"),
+                         "public, max-age=31536000, immutable")
+
+    def test_hashed_css_asset_is_immutable(self):
+        """i CSS: mutant, ktery cacheuje immutable jen podle pripony .js, jinak projde."""
+        response = self.get(f"/static/{web_fixture.STYLE_NAME}")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.getheader("Cache-Control"),
+                         "public, max-age=31536000, immutable")
+
+    def test_index_and_unhashed_asset_are_no_store(self):
+        for path in ("/", "/static/icon.svg", "/static/style.css"):
+            with self.subTest(path=path):
+                self.assertEqual(self.get(path).getheader("Cache-Control"),
+                                 "no-store")
+
+
+class MissingBuildTest(unittest.TestCase):
+    """Server startovany bez buildu: / rekne proc, misto aby spadl."""
+
+    def setUp(self):
+        self.empty = tempfile.TemporaryDirectory()
+        self.addCleanup(self.empty.cleanup)
+        self.patch_web = mock.patch.object(server, "WEB_DIR",
+                                           Path(self.empty.name))
+        self.patch_web.start()
+        self.addCleanup(self.patch_web.stop)
+        self.server, self.port = start_server()
+        self.addCleanup(self.server.shutdown)
+        self.addCleanup(self.server.server_close)
+
+    def test_root_says_it_in_czech_instead_of_traceback(self):
+        with mock.patch.object(self.server, "handle_error") as handle_error:
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            self.addCleanup(conn.close)
+            conn.request("GET", "/")
+            response = conn.getresponse()
+            body = response.read().decode("utf-8")
+        self.assertEqual(response.status, 503)
+        self.assertEqual(response.getheader("Content-Type"),
+                         "text/plain; charset=utf-8")
+        self.assertIn("zbuilděný", body)
+        self.assertIn("npm ci && npm run build", body)
+        # Traceback na stderr znamena, ze vyjimka prosla do socketserveru.
+        handle_error.assert_not_called()
+
+
+class BuildDisappearsTest(unittest.TestCase):
+    """Build zmizi za behu: / to rekne vetou, /stats funguje dal."""
+
+    def setUp(self):
+        self.web = web_fixture.fake_web()
+        root, static, self.index = self.web.__enter__()
+        self.addCleanup(self.web.__exit__, None, None, None)
+        self.patch_web = mock.patch.object(server, "WEB_DIR", root)
+        self.patch_static = mock.patch.object(server, "STATIC_DIR", static)
+        self.patch_web.start()
+        self.patch_static.start()
+        self.addCleanup(self.patch_web.stop)
+        self.addCleanup(self.patch_static.stop)
+        self.server, self.port = start_server()
+        self.addCleanup(self.server.shutdown)
+        self.addCleanup(self.server.server_close)
+
+    def get(self, path):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        self.addCleanup(conn.close)
+        conn.request("GET", path)
+        return conn.getresponse()
+
+    def test_root_explains_the_missing_build_and_stats_still_work(self):
+        with mock.patch.object(self.server, "handle_error") as handle_error:
+            self.assertEqual(self.get("/").status, 200)
+
+            self.index.unlink()
+
+            response = self.get("/")
+            body = response.read().decode("utf-8")
+            self.assertEqual(response.status, 503)
+            self.assertEqual(response.getheader("Content-Type"),
+                             "text/plain; charset=utf-8")
+            self.assertIn("zbuilděný", body)
+            self.assertIn("npm ci && npm run build", body)
+
+            # Chovani /stats se tim nemění.
+            stats = self.get("/stats")
+            self.assertEqual(stats.status, 200)
+            self.assertEqual(json.loads(stats.read())["host"], "test")
+
+        handle_error.assert_not_called()
+
+
+@unittest.skipUnless((server.WEB_DIR / "index.html").exists(),
+                     "chybi build (npm run build ve frontend/)")
+class RealBuildCacheHeadersTest(unittest.TestCase):
+    """Pin nad skutecnym buildem, ne jen nad fixture, kterou si test pise sam."""
+
+    def setUp(self):
+        self.server, self.port = start_server()
+        self.addCleanup(self.server.shutdown)
+        self.addCleanup(self.server.server_close)
+
+    def get(self, path):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        self.addCleanup(conn.close)
+        conn.request("GET", path)
+        return conn.getresponse()
+
+    def test_real_build_serves_cache_headers_over_http(self):
+        html = server.load_index()
+        js = re.search(r'src="(/static/assets/[^"]+\.js)"', html)
+        css = re.search(r'href="(/static/assets/[^"]+\.css)"', html)
+        self.assertIsNotNone(js, "build neodkazuje na hashovany .js")
+        self.assertIsNotNone(css, "build neodkazuje na hashovany .css")
+
+        expected = {
+            "/": "no-store",
+            js.group(1): "public, max-age=31536000, immutable",
+            css.group(1): "public, max-age=31536000, immutable",
+            "/static/icon.svg": "no-store",
+        }
+        for path, cache in expected.items():
+            with self.subTest(path=path):
+                response = self.get(path)
+                self.assertEqual(response.status, 200, path)
+                self.assertEqual(response.getheader("Cache-Control"), cache, path)
+
+
 class BusyPortTest(unittest.TestCase):
     def test_busy_port_raises_oserror(self):
         """Druhy bind na temz portu musi selhat - na tom stoji hlaska v __main__."""
