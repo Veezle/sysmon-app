@@ -94,8 +94,11 @@ sidecar: aplikace spustí démona, jen když 8430 neposlouchá, předá mu
 explicitní `--port 8430`, čeká na readiness TCP connectem a vlastněného
 démona drží přes `PR_SET_PDEATHSIG` (kontrola proti PIDu rodiče, ne
 proti 1 — `systemd --user` je subreaper); 10 testů, 5/5 `kill -9` → port
-volný, cizí démon přežije. **Další na řadě je Task 3:** dozor — restart,
-exit code 2, chybový dialog.
+volný, cizí démon přežije. Hotový **Task 3** — dozor: pád vlastněného
+démona restartuje po 1/2/4 s, čtvrtý pád otevře dialog „Zkusit znovu /
+Ukončit“, `rc=2` se nerestartuje a ukáže stderr; neodpovězený dialog po
+300 s proces ukončí; 12 testů, restart naměřen za 1,1–4,2 s podle pokusu.
+**Další na řadě je Task 4:** tray, zavření do traye a ukončení.
 Python závislost je pořád jen `psutil`; JS závislosti žijí jen ve
 `frontend/package.json` a lockfile se commituje.
 

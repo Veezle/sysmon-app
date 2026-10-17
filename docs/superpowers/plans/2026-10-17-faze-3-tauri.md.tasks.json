@@ -19,7 +19,7 @@
     {
       "id": 2,
       "subject": "Task 3: Dozor — restart, exit code 2, chybový dialog",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Pad vlastneneho demona spusti max 3 restarty (1/2/4 s), pak dialog; rc=2 se nerestartuje.\n\n**Files:**\n- src-tauri/src/sidecar.rs\n- src-tauri/src/ui.rs\n- src-tauri/src/main.rs\n\n**Acceptance Criteria:**\n- unit testy backoff_for a should_restart\n- SIGKILL -> novy demon do ~2 s\n- rc=2 -> zadny restart, dialog se stderr\n- po trech padech dialog Zkusit znovu/Ukoncit\n\n**Verify:** cargo test --manifest-path src-tauri/Cargo.toml + SIGKILL + presunuty build\n\n```json:metadata\n{\"files\": [\"src-tauri/src/sidecar.rs\", \"src-tauri/src/ui.rs\", \"src-tauri/src/main.rs\"], \"verifyCommand\": \"cargo test --manifest-path src-tauri/Cargo.toml + SIGKILL + presunuty build\", \"acceptanceCriteria\": [\"unit testy backoff_for a should_restart\", \"SIGKILL -> novy demon do ~2 s\", \"rc=2 -> zadny restart, dialog se stderr\", \"po trech padech dialog Zkusit znovu/Ukoncit\"]}\n```",
       "blockedBy": [
         1
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T17:48:00+02:00"
+  "lastUpdated": "2026-10-17T18:32:00+02:00"
 }
