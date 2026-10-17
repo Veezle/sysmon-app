@@ -1,3 +1,4 @@
+use gtk::prelude::*;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const WINDOW_LABEL: &str = "main";
@@ -49,6 +50,27 @@ pub fn show_main_window(app: &AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+/// Chybový dialog se dvěma volbami: „Zkusit znovu“ vrací `true`,
+/// „Ukončit“ (i zavření dialogu) vrací `false`.
+pub fn error_dialog(app: &AppHandle, message: &str) -> bool {
+    let parent = app
+        .get_webview_window(WINDOW_LABEL)
+        .and_then(|w| w.gtk_window().ok());
+    let dialog = gtk::MessageDialog::new(
+        parent.as_ref(),
+        gtk::DialogFlags::empty(),
+        gtk::MessageType::Error,
+        gtk::ButtonsType::None,
+        message,
+    );
+    dialog.set_title("Sysmon — chyba");
+    dialog.add_button("Zkusit znovu", gtk::ResponseType::Yes);
+    dialog.add_button("Ukončit", gtk::ResponseType::No);
+    let response = dialog.run();
+    dialog.close();
+    response == gtk::ResponseType::Yes
 }
 
 #[cfg(test)]

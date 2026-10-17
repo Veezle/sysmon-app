@@ -1,23 +1,37 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader};
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
 
+use crate::ui;
+
 pub const PORT: u16 = 8430;
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 const READY_POLL: Duration = Duration::from_millis(50);
 const STOP_GRACE: Duration = Duration::from_secs(5);
 const STDERR_LINES: usize = 40;
+/// Po takhle dlouhém běhu se rozpočet restartů znovu naplní. Démon, který
+/// vydržel minutu, spadl znovu „od nuly“, ne v rámci jedné poruchové série.
+const UPTIME_RESET: Duration = Duration::from_secs(60);
+/// Dialog běží na hlavním vlákně; když uživatel neodpoví, bere se to jako
+/// „Ukončit“, aby aplikace nezůstala viset navěky.
+const DIALOG_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct SidecarHandle {
-    pub owned: bool,
-    pub child: Mutex<Option<Child>>,
+    /// `true` jen když démona spustila tahle aplikace. Cizí démon na portu
+    /// 8430 se používá, ale nikdy se neukončuje.
+    pub owned: Arc<AtomicBool>,
+    /// PID vlastněného démona, nebo 0, když žádný neběží (mezi pády,
+    /// během respawnu a po ukončení). Nikdy nesmí zůstat stale po `wait()`.
+    pub pid: Arc<AtomicI32>,
+    pub quitting: Arc<AtomicBool>,
     pub stderr: Arc<Mutex<VecDeque<String>>>,
 }
 
@@ -29,6 +43,21 @@ pub fn port_open() -> bool {
 
 pub fn daemon_dir_ok(dir: &Path) -> bool {
     dir.join("sysmon_app").join("__main__.py").is_file()
+}
+
+/// Rozpočet restartů: 1 s, 2 s, 4 s; čtvrtý pád už dialog.
+pub fn backoff_for(attempt: usize) -> Option<Duration> {
+    match attempt {
+        1 => Some(Duration::from_secs(1)),
+        2 => Some(Duration::from_secs(2)),
+        3 => Some(Duration::from_secs(4)),
+        _ => None,
+    }
+}
+
+/// `rc=2` znamená chybějící build — restart by jen zopakoval tutéž chybu.
+pub fn should_restart(exit_code: Option<i32>, quitting: bool) -> bool {
+    !quitting && exit_code != Some(2)
 }
 
 /// Argumenty démona. Port se předává explicitně: okno je napevno na
@@ -51,11 +80,17 @@ fn parent_still_alive(actual_ppid: libc::pid_t, expected_parent: libc::pid_t) ->
 }
 
 pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
+    let stderr = Arc::new(Mutex::new(VecDeque::new()));
+    let pid = Arc::new(AtomicI32::new(0));
+    let owned = Arc::new(AtomicBool::new(false));
+    let quitting = Arc::new(AtomicBool::new(false));
+
     if port_open() {
         return Ok(SidecarHandle {
-            owned: false,
-            child: Mutex::new(None),
-            stderr: Arc::new(Mutex::new(VecDeque::new())),
+            owned,
+            pid,
+            quitting,
+            stderr,
         });
     }
 
@@ -69,34 +104,192 @@ pub fn ensure_daemon(app: AppHandle) -> Result<SidecarHandle, String> {
         ));
     }
 
-    let stderr = Arc::new(Mutex::new(VecDeque::new()));
-    let mut child = spawn_daemon(&cwd, &stderr)
-        .map_err(|e| format!("Démona se nepodařilo spustit: {e}"))?;
+    let mut child = spawn_daemon(&cwd, &stderr)?;
 
     if let Err(err) = wait_ready(&mut child, &stderr) {
+        // Ukončit vlastní nedoběhlé dítě, ať po nás nezůstane viset.
+        let _ = child.kill();
+        let _ = child.wait();
         if port_open() {
-            // Někdo jiný mezitím obsadil port — použij jeho démona.
+            // Někdo jiný mezitím obsadil port — použij jeho démona, ale
+            // nevlastni ho.
             return Ok(SidecarHandle {
-                owned: false,
-                child: Mutex::new(None),
+                owned,
+                pid,
+                quitting,
                 stderr,
             });
         }
         return Err(err);
     }
 
-    let _ = app;
-    Ok(SidecarHandle {
-        owned: true,
-        child: Mutex::new(Some(child)),
-        stderr,
-    })
+    pid.store(child.id() as i32, Ordering::SeqCst);
+    owned.store(true, Ordering::SeqCst);
+    let handle = SidecarHandle {
+        owned: owned.clone(),
+        pid: pid.clone(),
+        quitting: quitting.clone(),
+        stderr: stderr.clone(),
+    };
+    start_supervisor(app, cwd, child, owned, pid, quitting, stderr);
+    Ok(handle)
+}
+
+fn start_supervisor(
+    app: AppHandle,
+    cwd: PathBuf,
+    child: Child,
+    owned: Arc<AtomicBool>,
+    pid: Arc<AtomicI32>,
+    quitting: Arc<AtomicBool>,
+    stderr: Arc<Mutex<VecDeque<String>>>,
+) {
+    thread::spawn(move || supervise(app, cwd, child, owned, pid, quitting, stderr));
+}
+
+fn supervise(
+    app: AppHandle,
+    cwd: PathBuf,
+    mut child: Child,
+    owned: Arc<AtomicBool>,
+    pid: Arc<AtomicI32>,
+    quitting: Arc<AtomicBool>,
+    stderr: Arc<Mutex<VecDeque<String>>>,
+) {
+    let mut attempt = 0usize;
+    let mut started = Instant::now();
+
+    loop {
+        let status = child.wait();
+        // Dítě je mrtvé: jeho PID je od teď stale a nesmí se na něj posílat
+        // signál. Nový PID se uloží až po úspěšném `wait_ready`.
+        pid.store(0, Ordering::SeqCst);
+        if quitting.load(Ordering::SeqCst) {
+            return;
+        }
+        if started.elapsed() >= UPTIME_RESET {
+            attempt = 0;
+        }
+        let code = status.ok().and_then(|s| s.code());
+
+        if should_restart(code, false) {
+            attempt += 1;
+            match backoff_for(attempt) {
+                Some(delay) => {
+                    thread::sleep(delay);
+                    if quitting.load(Ordering::SeqCst) {
+                        return;
+                    }
+                }
+                None => {
+                    // Rozpočet tří restartů je vyčerpaný.
+                    if !retry_or_exit(&app, &stderr) {
+                        return;
+                    }
+                    attempt = 0;
+                }
+            }
+        } else {
+            // `rc=2` (chybějící build) se automaticky nerestartuje.
+            if port_open() {
+                // Port mezitím obsadil cizí démon — žádný dialog ani restart,
+                // jen si přestaneme myslet, že je náš.
+                owned.store(false, Ordering::SeqCst);
+                return;
+            }
+            if !retry_or_exit(&app, &stderr) {
+                return;
+            }
+            attempt = 0;
+        }
+
+        // Respawn: dokud se nový démon nepřipojí, zkoušíme to na pokyn
+        // uživatele (nebo po backoffu výše).
+        loop {
+            if quitting.load(Ordering::SeqCst) {
+                return;
+            }
+            if port_open() {
+                // Port mezitím někdo obsadil — náš démon tam nemůže a ten
+                // cizí nevlastníme.
+                owned.store(false, Ordering::SeqCst);
+                pid.store(0, Ordering::SeqCst);
+                return;
+            }
+            let ready = match spawn_daemon(&cwd, &stderr) {
+                Ok(mut next) => match wait_ready(&mut next, &stderr) {
+                    Ok(()) => Some(next),
+                    Err(err) => {
+                        push_stderr(&stderr, err);
+                        None
+                    }
+                },
+                Err(err) => {
+                    push_stderr(&stderr, err);
+                    None
+                }
+            };
+            let Some(mut next) = ready else {
+                if port_open() {
+                    // Respawn selhal a port mezitím poslouchá někdo jiný.
+                    owned.store(false, Ordering::SeqCst);
+                    pid.store(0, Ordering::SeqCst);
+                    return;
+                }
+                if !retry_or_exit(&app, &stderr) {
+                    return;
+                }
+                attempt = 0;
+                continue;
+            };
+            if quitting.load(Ordering::SeqCst) {
+                let _ = next.kill();
+                let _ = next.wait();
+                return;
+            }
+            pid.store(next.id() as i32, Ordering::SeqCst);
+            started = Instant::now();
+            child = next;
+            break;
+        }
+    }
+}
+
+/// Ukáže dialog „Zkusit znovu / Ukončit“. Vrací `true` pro nový pokus;
+/// `false` znamená, že uživatel zvolil „Ukončit“ (nebo se dialog nepodařilo
+/// doručit), a pak se aplikace opravdu ukončí.
+fn retry_or_exit(app: &AppHandle, stderr: &Arc<Mutex<VecDeque<String>>>) -> bool {
+    if retry_dialog(app, stderr) {
+        true
+    } else {
+        app.exit(1);
+        false
+    }
+}
+
+fn retry_dialog(app: &AppHandle, stderr: &Arc<Mutex<VecDeque<String>>>) -> bool {
+    let message = format!(
+        "Démon se nepodařilo udržet v chodu.\n\n{}",
+        stderr_tail(stderr)
+    );
+    let (tx, rx) = std::sync::mpsc::channel();
+    let handle = app.clone();
+    let queued = app.run_on_main_thread(move || {
+        let retry = ui::error_dialog(&handle, &message);
+        let _ = tx.send(retry);
+    });
+    if queued.is_err() {
+        return false;
+    }
+    // Vědomé zjednodušení: neodpovězený dialog po 300 s skončí jako
+    // „Ukončit“, aby aplikace nezůstala viset.
+    rx.recv_timeout(DIALOG_TIMEOUT).unwrap_or(false)
 }
 
 fn spawn_daemon(
     cwd: &Path,
     stderr: &Arc<Mutex<VecDeque<String>>>,
-) -> std::io::Result<Child> {
+) -> Result<Child, String> {
     let parent_pid = std::process::id() as libc::pid_t;
     let mut cmd = Command::new("python3");
     cmd.args(daemon_args())
@@ -119,7 +312,9 @@ fn spawn_daemon(
         });
     }
 
-    let mut child = cmd.spawn()?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Démona se nepodařilo spustit: {e}"))?;
     let pipe = child.stderr.take().expect("stderr je pipovaný");
     let buffer = stderr.clone();
     thread::spawn(move || {
@@ -148,15 +343,17 @@ fn wait_ready(
 ) -> Result<(), String> {
     let deadline = Instant::now() + READY_TIMEOUT;
     while Instant::now() < deadline {
-        if port_open() {
-            return Ok(());
-        }
+        // Exit se kontroluje dřív než port: mrtvé dítě nemůže být připravené,
+        // i kdyby port mezitím poslouchal někdo cizí.
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
             return Err(format!(
                 "Démon skončil (kód {}).\n{}",
                 status.code().unwrap_or(-1),
                 stderr_tail(stderr)
             ));
+        }
+        if port_open() {
+            return Ok(());
         }
         thread::sleep(READY_POLL);
     }
@@ -174,31 +371,31 @@ pub fn stop_owned(app: &AppHandle) {
     let Some(handle) = app.try_state::<SidecarHandle>() else {
         return;
     };
-    if !handle.owned {
+    if !handle.owned.load(Ordering::SeqCst) {
         return;
     }
-    let mut slot = handle.child.lock().unwrap();
-    let Some(mut child) = slot.take() else {
+    handle.quitting.store(true, Ordering::SeqCst);
+    let pid = handle.pid.load(Ordering::SeqCst);
+    if pid <= 0 {
+        handle.pid.store(0, Ordering::SeqCst);
         return;
-    };
-    let pid = child.id() as i32;
+    }
     unsafe {
         libc::kill(pid, libc::SIGTERM);
     }
     let deadline = Instant::now() + STOP_GRACE;
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => return,
-            Ok(None) if Instant::now() < deadline => {
-                thread::sleep(Duration::from_millis(50));
-            }
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return;
-            }
+    while Instant::now() < deadline {
+        if unsafe { libc::kill(pid, 0) } != 0 {
+            break;
         }
+        thread::sleep(Duration::from_millis(50));
     }
+    // Když proces do grace doby nezmizel, dorazí ho SIGKILL. Na již mrtvý
+    // PID je to no-op; stale PID se do stavu nikdy neuloží.
+    unsafe {
+        libc::kill(pid, libc::SIGKILL);
+    }
+    handle.pid.store(0, Ordering::SeqCst);
 }
 
 #[cfg(test)]
@@ -257,5 +454,21 @@ mod tests {
     #[test]
     fn daemon_args_force_the_window_port() {
         assert_eq!(daemon_args(), ["-m", "sysmon_app", "--port", "8430"]);
+    }
+
+    #[test]
+    fn backoff_is_one_two_four_then_none() {
+        assert_eq!(backoff_for(1), Some(Duration::from_secs(1)));
+        assert_eq!(backoff_for(2), Some(Duration::from_secs(2)));
+        assert_eq!(backoff_for(3), Some(Duration::from_secs(4)));
+        assert_eq!(backoff_for(4), None);
+    }
+
+    #[test]
+    fn rc_two_is_not_restarted() {
+        assert!(!should_restart(Some(2), false));
+        assert!(should_restart(Some(1), false));
+        assert!(should_restart(Some(0), false));
+        assert!(!should_restart(Some(1), true));
     }
 }
