@@ -59,7 +59,7 @@ instalátory a měření paměti patří do fáze 4.
 
 ```
 src-tauri/
-  Cargo.toml            # tauri 2 (tray-icon, image-png), single-instance, libc, gtk
+  Cargo.toml            # tauri 2 (tray-icon), single-instance, libc, gtk
   build.rs              # tauri_build::build()
   tauri.conf.json       # frontendDist = URL démona, identifier, ikony
   icons/                # 32x32.png, 128x128.png — generované z icon.svg
@@ -180,7 +180,7 @@ X-GNOME-Autostart-enabled=true
 - **Systém:** chybí jen `webkit2gtk-4.1` (`sudo pacman -S webkit2gtk-4.1`).
   `gtk3`, `libayatana-appindicator`, `librsvg`, `base-devel` a `openssl` už
   nainstalované jsou (ověřeno 2026-10-17).
-- **Rust:** `tauri` 2 s features `tray-icon` a `image-png`, `tauri-build` 2,
+- **Rust:** `tauri` 2 s feature `tray-icon`, `tauri-build` 2,
   `tauri-plugin-single-instance` 2, `libc` 0.2 a `gtk` 0.18 (verze, kterou
   používá Tauri 2). Žádný HTTP klient — readiness je TCP connect, data tahá
   webview.
