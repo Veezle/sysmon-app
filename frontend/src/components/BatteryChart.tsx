@@ -10,8 +10,8 @@ export const BatteryChart = memo(function BatteryChart({
   history: BatterySample[];
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
-  // Klíč posledního nakresleného obrazu. Drzi se v refu, ne v modulu: ref
-  // nepřežije remount, takže nezůstane zastaralý klíč z jiné instance.
+  // Klic posledniho nakresleneho obrazu. Drzi se v refu, ne v modulu: ref
+  // neprezije remount, takze nezustane zastaraly klic z jine instance.
   const chartKey = useRef<string | null>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -35,11 +35,19 @@ function drawBatteryChart(
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
   // Prekresluje se jen kdyz se zmenila data nebo velikost platna - jinak by se
-  // kazdych 1,5 s zbytecne prekresloval stejny obrazek.
+  // kazdych 1,5 s zbytecne prekresloval stejny obrazek. Podpis vsech hodnot
+  // je v klici proto, ze backend posila `t` relativni k prvnimu vzorku: po
+  // naplneni 24h historie zustava `length` i posledni `t` stejne a meni se
+  // jen `v` - bez podpisu by graf zamrzl.
+  const lastPoint = data[data.length - 1];
+  let sig = 0;
+  for (const p of data) sig = (Math.imul(sig, 31) + p.v) | 0;
   const key =
     data.length +
     "|" +
-    data[data.length - 1].t +
+    lastPoint.t +
+    "|" +
+    sig +
     "|" +
     Math.round(rect.width) +
     "x" +

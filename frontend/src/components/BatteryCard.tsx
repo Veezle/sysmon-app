@@ -9,7 +9,7 @@ interface BatteryCardProps {
 }
 
 // Nedostupna baterie (nebo baterie bez `capacity`) kartu vubec nevykresli -
-// presne dnešní `batteryCard.style.display = "none"`.
+// presne dnesni `batteryCard.style.display = "none"`.
 export const BatteryCard = memo(function BatteryCard({
   battery,
   history,
