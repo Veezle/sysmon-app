@@ -35,8 +35,9 @@ def stable_snapshot():
     """Snapshot pro frontendovou fixture: stejny tvar jako kontrakt, ale
     zmrazene hodnoty.
 
-    Zadne realne casy, procenta ani PIDy - jinak by fixture zestarnala pri
-    kazdem behu. `loadavg: None` a chybejici `nvme_temp` jsou zamerne
+    Zadna hodnota nezavisi na stroji ani case - konkretni cisla jsou
+    vymyslena, proto fixture nezestarna.
+    `loadavg: None` a chybejici `nvme_temp` jsou zamerne
     degradovane pripady; `gpu.util`, `net.total_up` a `containers.groups`
     pinuji pole, na kterych planova kostra lhala.
     """
@@ -86,6 +87,7 @@ def stable_snapshot():
             },
         },
     }
+
 
 # Hodnota je (atribut na Monitoru, nebo None pro funkci v modulu, jmeno).
 COLLECTOR_CALLS = {
@@ -336,8 +338,8 @@ class SnapshotContractTest(unittest.TestCase):
 class FrontendFixtureTest(unittest.TestCase):
     """Fixture pro TypeScript typy - klice hlida Python, tvary TypeScript.
 
-    `snapshot.contract.ts` ve frontendu porovnava fixture s interface pres
-    `satisfies`: chybejici povinny klic nebo jiny typ hodnoty spadne pri
+    Kontrolni soubor ve frontendu porovnava fixture s interface pres
+    `satisfies`: kdyz se zmeni fixture a typy se neupravi, spadne
     `npm run typecheck`. Opacny smer (extra klic v JSON) TypeScript nehlida,
     proto klicovou sadu pinuje tenhle test.
 
@@ -355,7 +357,7 @@ class FrontendFixtureTest(unittest.TestCase):
         if os.environ.get("UPDATE_FIXTURE") == "1":
             FIXTURE.parent.mkdir(parents=True, exist_ok=True)
             FIXTURE.write_text(text, encoding="utf-8")
-            self.skipTest("fixture pregenerovana (UPDATE_FIXTURE=1)")
+            self.skipTest("fixture pregenerována (UPDATE_FIXTURE=1)")
         self.assertTrue(FIXTURE.exists(), f"chybí {FIXTURE}; spusť s UPDATE_FIXTURE=1")
         self.assertEqual(FIXTURE.read_text(encoding="utf-8"), text,
                          "fixture zestárla - spusť s UPDATE_FIXTURE=1")

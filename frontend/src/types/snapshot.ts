@@ -42,8 +42,9 @@ export interface ProcessInfo {
   mem: number;
 }
 
-// `get_system_info()` pada na `{}` a `nvme_temp` je jen na strojich, ktere
-// ho umi precist - proto jsou vsechna pole volitelna.
+// `Monitor` pada na `{}` (stejne jako pri vyjimce `get_system_info()`) a
+// `nvme_temp` je jen na strojich, ktere ho umi precist - proto jsou vsechna
+// pole volitelna.
 export interface SystemInfo {
   kernel?: string;
   uptime_seconds?: number;
@@ -88,8 +89,9 @@ export interface ServiceInfo {
   on: boolean;
 }
 
-// Raw radek z `docker ps --format '{{json .}}'` (hodnoty jsou retezce) plus
-// statistiky z `docker stats`. Vsechna pole mohou chybet.
+// Podmnozina poli z `docker ps --format '{{json .}}'`, ktera UI pouziva, plus
+// statistiky z `docker stats`. Hodnoty jsou prevazne retezce (`Platform` je
+// ale objekt), a vsechna pole mohou chybet.
 export interface ContainerInfo {
   ID?: string;
   Names?: string;
@@ -116,7 +118,7 @@ export interface Snapshot {
   user: string;
   cpu: number;
   cpu_cores: CoreLoad[];
-  cpu_temp?: number | null;
+  cpu_temp?: number;
   mem: MemInfo;
   swap: SwapInfo;
   loadavg: LoadAvg | null;
