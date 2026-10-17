@@ -462,7 +462,7 @@ class CacheHeadersTest(unittest.TestCase):
                          "public, max-age=31536000, immutable")
 
     def test_index_and_unhashed_asset_are_no_store(self):
-        for path in ("/", "/static/icon.svg", "/static/style.css"):
+        for path in ("/", "/static/icon.svg", "/static/style.css", "/stats"):
             with self.subTest(path=path):
                 self.assertEqual(self.get(path).getheader("Cache-Control"),
                                  "no-store")

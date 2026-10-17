@@ -108,6 +108,17 @@ class MainTestCase(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
 
+        # main() ma branu `load_index() is None -> rc 2`. Bez podstrzeneho
+        # WEB_DIR by v cerstvem klonu (bez buildu) spadlo 11 testu startu;
+        # obsah indexu je tu jen aby brana prosla, tvary se netestuji.
+        self.web = tempfile.TemporaryDirectory()
+        self.addCleanup(self.web.cleanup)
+        (Path(self.web.name) / "index.html").write_text(
+            "<!doctype html><html></html>", encoding="utf-8")
+        web_patch = mock.patch.object(server_modul, "WEB_DIR", Path(self.web.name))
+        web_patch.start()
+        self.addCleanup(web_patch.stop)
+
         self.serve_calls = []       # (host, port), se kterymi main zavolal serve()
         self.servers = []           # to, co main dostal ze serve()
         self.monitors = []
@@ -592,6 +603,8 @@ class Server:
 
 with mock.patch.object(vstupni_bod, "Monitor", Monitor), \\
         mock.patch.object(vstupni_bod, "SnapshotFeed", Feed), \\
+        mock.patch.object(vstupni_bod, "load_index",
+                          lambda: "<!doctype html><html></html>"), \\
         mock.patch.object(vstupni_bod, "serve", lambda *args: Server()):
     sys.exit(vstupni_bod.main([]))
 """
