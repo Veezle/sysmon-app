@@ -94,9 +94,16 @@ pub fn bundled_daemon_path(exe: &Path) -> PathBuf {
         .join("sysmon-app-daemon")
 }
 
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    path.metadata()
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
 pub fn resolve_daemon(exe: &Path, cwd: &Path) -> Result<DaemonSource, String> {
     let bundled = bundled_daemon_path(exe);
-    if bundled.is_file() {
+    if is_executable(&bundled) {
         return Ok(DaemonSource::Bundled(bundled));
     }
     if daemon_dir_ok(cwd) {
@@ -328,12 +335,8 @@ fn retry_dialog(app: &AppHandle, stderr: &Arc<Mutex<VecDeque<String>>>) -> bool 
     }
 }
 
-fn spawn_daemon(
-    source: &DaemonSource,
-    stderr: &Arc<Mutex<VecDeque<String>>>,
-) -> Result<Child, String> {
-    let parent_pid = std::process::id() as libc::pid_t;
-    let mut cmd = match source {
+fn daemon_command(source: &DaemonSource) -> Command {
+    match source {
         DaemonSource::Bundled(path) => {
             let mut c = Command::new(path);
             c.args(["--port", &PORT.to_string()]);
@@ -344,7 +347,15 @@ fn spawn_daemon(
             c.args(daemon_args()).current_dir(cwd);
             c
         }
-    };
+    }
+}
+
+fn spawn_daemon(
+    source: &DaemonSource,
+    stderr: &Arc<Mutex<VecDeque<String>>>,
+) -> Result<Child, String> {
+    let parent_pid = std::process::id() as libc::pid_t;
+    let mut cmd = daemon_command(source);
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -457,6 +468,12 @@ pub fn stop_owned(app: &AppHandle) {
 mod tests {
     use super::*;
 
+    fn make_executable(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            .expect("spustitelná práva");
+    }
+
     fn temp_dir(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -485,6 +502,7 @@ mod tests {
         std::fs::create_dir_all(daemon.parent().unwrap()).unwrap();
         std::fs::write(&exe, b"").unwrap();
         std::fs::write(&daemon, b"").unwrap();
+        make_executable(&daemon);
         let cwd = root.join("repo");
         std::fs::create_dir_all(cwd.join("sysmon_app")).unwrap();
         std::fs::write(cwd.join("sysmon_app/__main__.py"), b"").unwrap();
@@ -493,6 +511,26 @@ mod tests {
         assert_eq!(
             resolve_daemon(&exe, &cwd).unwrap(),
             DaemonSource::Bundled(root.join("usr/bin/../lib/sysmon-app/daemon/sysmon-app-daemon"))
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn non_executable_bundle_is_not_used() {
+        let root = temp_dir("noexec");
+        let exe = root.join("usr/bin/sysmon-app");
+        let daemon = root.join("usr/lib/sysmon-app/daemon/sysmon-app-daemon");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(daemon.parent().unwrap()).unwrap();
+        std::fs::write(&exe, b"").unwrap();
+        std::fs::write(&daemon, b"").unwrap();
+        let cwd = root.join("repo");
+        std::fs::create_dir_all(cwd.join("sysmon_app")).unwrap();
+        std::fs::write(cwd.join("sysmon_app/__main__.py"), b"").unwrap();
+
+        assert_eq!(
+            resolve_daemon(&exe, &cwd).unwrap(),
+            DaemonSource::Source(cwd)
         );
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -518,7 +556,29 @@ mod tests {
         let err = resolve_daemon(&exe, &root).unwrap_err();
         assert!(err.contains("sysmon-app-daemon"));
         assert!(err.contains("__main__.py"));
+        assert!(err.contains(&root.display().to_string()));
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bundled_command_forces_window_port() {
+        let cmd = daemon_command(&DaemonSource::Bundled(PathBuf::from(
+            "/x/sysmon-app-daemon",
+        )));
+        assert_eq!(cmd.get_program(), "/x/sysmon-app-daemon");
+        let args: Vec<_> = cmd.get_args().collect();
+        assert_eq!(args, ["--port", "8430"]);
+    }
+
+    #[test]
+    fn bundled_path_matches_tauri_config() {
+        let config = include_str!("../tauri.conf.json");
+        let after = config.split("\"productName\"").nth(1).expect("productName");
+        let name = after.split('"').nth(1).expect("hodnota productName");
+        assert_eq!(name, "sysmon-app");
+        assert!(config.contains("\"../packaging/daemon\": \"daemon\""));
+        let path = bundled_daemon_path(Path::new("/usr/bin/sysmon-app"));
+        assert!(path.to_string_lossy().contains(&format!("/lib/{name}/daemon/")));
     }
 
     #[test]

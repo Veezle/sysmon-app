@@ -84,11 +84,43 @@ pub fn hidden_from_args<I: Iterator<Item = String>>(args: I) -> bool {
     args.into_iter().any(|arg| arg == "--hidden")
 }
 
-/// Instalovaná cesta neleží pod `target/`; vývojový build ano.
+/// Cesta, kterou má autostart spouštět. U AppImage je `current_exe()`
+/// efemérní mount; runtime dává skutečnou cestu v `APPIMAGE`.
+pub fn autostart_exe_from(appimage: Option<&OsStr>, current: &Path) -> PathBuf {
+    if let Some(raw) = appimage {
+        let candidate = PathBuf::from(raw);
+        if candidate.is_absolute() && candidate.is_file() {
+            return candidate;
+        }
+    }
+    current.to_path_buf()
+}
+
+pub fn autostart_exe() -> Option<PathBuf> {
+    let current = std::env::current_exe().ok()?;
+    Some(autostart_exe_from(
+        std::env::var_os("APPIMAGE").as_deref(),
+        &current,
+    ))
+}
+
+/// Instalovaná cesta neleží pod `target/`; vývojový build ano. Efemérní
+/// AppImage mount (`.mount_*`) je instalace jen zdánlivě — po ukončení
+/// zmizí, takže se do autostartu zapsat nesmí.
 pub fn installed_exe(path: &Path) -> bool {
-    !path
-        .components()
-        .any(|c| c.as_os_str() == "target")
+    !path.components().any(|c| c.as_os_str() == "target")
+        && !path.to_string_lossy().contains(".mount_")
+}
+
+pub fn installed_autostart() -> bool {
+    autostart_exe().map(|p| installed_exe(&p)).unwrap_or(false)
+}
+
+fn autostart_disabled(content: &str) -> bool {
+    content.lines().any(|line| {
+        let line = line.trim();
+        line == "Hidden=true" || line == "X-GNOME-Autostart-enabled=false"
+    })
 }
 
 /// Přepsat `.desktop`, jen když jsme instalovaní a Exec míří jinam.
@@ -104,6 +136,9 @@ pub fn should_rewrite(
     let Some(content) = desktop else {
         return false;
     };
+    if autostart_disabled(content) {
+        return false;
+    }
     let expected = format!("Exec={} --hidden", quote_exec(current_exe));
     !content.lines().any(|line| line == expected)
 }
@@ -118,9 +153,13 @@ pub fn migrate_desktop(installed: bool) {
     let Ok(content) = fs::read_to_string(&desktop) else {
         return;
     };
-    let Ok(exe) = std::env::current_exe() else {
+    let Some(exe) = autostart_exe() else {
         return;
     };
+    if let Err(err) = exe_path_supported(&exe) {
+        eprintln!("Autostart: {err}");
+        return;
+    }
     if !should_rewrite(Some(&content), &exe, installed) {
         return;
     }
@@ -145,8 +184,8 @@ fn exe_path_supported(path: &Path) -> Result<(), String> {
 }
 
 fn write_autostart(desktop: &Path) -> Result<(), String> {
-    let exe = std::env::current_exe()
-        .map_err(|err| format!("cestu ke spustitelnému souboru nelze zjistit: {err}"))?;
+    let exe = autostart_exe()
+        .ok_or_else(|| "cestu ke spustitelnému souboru nelze zjistit".to_string())?;
     exe_path_supported(&exe)?;
     if let Some(parent) = desktop.parent() {
         fs::create_dir_all(parent)
@@ -366,6 +405,84 @@ mod tests {
         assert!(!installed_exe(Path::new(
             "/home/u/repo/src-tauri/target/release/sysmon-app"
         )));
+    }
+
+    #[test]
+    fn appimage_env_wins_when_absolute_and_exists() {
+        let dir = temp_dir("appimage");
+        let appimage = dir.join("Sysmon.AppImage");
+        fs::write(&appimage, b"").expect("AppImage soubor");
+        assert_eq!(
+            autostart_exe_from(
+                Some(appimage.as_os_str()),
+                Path::new("/tmp/.mount_SysmonABC/usr/bin/sysmon-app")
+            ),
+            appimage
+        );
+        fs::remove_dir_all(&dir).expect("úklid");
+    }
+
+    #[test]
+    fn relative_appimage_is_ignored() {
+        assert_eq!(
+            autostart_exe_from(
+                Some(OsStr::new("rel/Sysmon.AppImage")),
+                Path::new("/usr/bin/sysmon-app")
+            ),
+            PathBuf::from("/usr/bin/sysmon-app")
+        );
+    }
+
+    #[test]
+    fn missing_appimage_is_ignored() {
+        let dir = temp_dir("appimage-missing");
+        let missing = dir.join("neexistuje.AppImage");
+        assert_eq!(
+            autostart_exe_from(Some(missing.as_os_str()), Path::new("/usr/bin/sysmon-app")),
+            PathBuf::from("/usr/bin/sysmon-app")
+        );
+        fs::remove_dir_all(&dir).expect("úklid");
+    }
+
+    #[test]
+    fn no_appimage_uses_current_exe() {
+        assert_eq!(
+            autostart_exe_from(None, Path::new("/usr/bin/sysmon-app")),
+            PathBuf::from("/usr/bin/sysmon-app")
+        );
+    }
+
+    #[test]
+    fn installed_exe_rejects_appimage_mount() {
+        assert!(!installed_exe(Path::new(
+            "/tmp/.mount_SysmonABC/usr/bin/sysmon-app"
+        )));
+    }
+
+    #[test]
+    fn hidden_true_is_not_rewritten() {
+        let content = desktop_entry(Path::new("/old/sysmon-app")).replace(
+            "Terminal=false",
+            "Hidden=true\nTerminal=false",
+        );
+        assert!(!should_rewrite(
+            Some(&content),
+            Path::new("/usr/bin/sysmon-app"),
+            true
+        ));
+    }
+
+    #[test]
+    fn disabled_gnome_autostart_is_not_rewritten() {
+        let content = desktop_entry(Path::new("/old/sysmon-app")).replace(
+            "X-GNOME-Autostart-enabled=true",
+            "X-GNOME-Autostart-enabled=false",
+        );
+        assert!(!should_rewrite(
+            Some(&content),
+            Path::new("/usr/bin/sysmon-app"),
+            true
+        ));
     }
 
     #[test]

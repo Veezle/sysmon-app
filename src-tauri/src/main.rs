@@ -43,9 +43,7 @@ fn main() {
 
             // Přepis se dělá i při `--hidden`, protože autostart startuje
             // právě tak.
-            let installed = std::env::current_exe()
-                .map(|exe| autostart::installed_exe(&exe))
-                .unwrap_or(false);
+            let installed = autostart::installed_autostart();
             autostart::migrate_desktop(installed);
 
             if !hidden {

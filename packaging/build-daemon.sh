@@ -126,4 +126,7 @@ COMMIT="$(git rev-parse --short HEAD)"
     echo "built=$BUILT_UTC"
 } > packaging/daemon/BUILD-INFO
 
+# Artefaktova cesta je gitignorovana; .gitkeep drzi adresar v cistem klonu.
+touch packaging/daemon/.gitkeep
+
 echo "Hotovo: packaging/daemon/sysmon-app-daemon ($MODE)"

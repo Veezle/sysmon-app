@@ -6,5 +6,6 @@ Comment={{comment}}
 Exec={{exec}}
 Icon={{icon}}
 Name=Sysmon
+StartupWMClass=Sysmon
 Terminal=false
 Type=Application
