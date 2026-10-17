@@ -1,3 +1,4 @@
+mod autostart;
 mod sidecar;
 mod ui;
 
@@ -7,8 +8,9 @@ use tauri::Manager;
 
 fn main() {
     gtk::glib::set_prgname(Some("Sysmon"));
+    let hidden = autostart::hidden_from_args(std::env::args());
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             let handle = loop {
                 match sidecar::ensure_daemon(app.handle().clone()) {
                     Ok(handle) => break handle,
@@ -29,9 +31,13 @@ fn main() {
                 && ui::create_tray(app.handle()).is_ok();
             app.manage(ui::TrayAvailable(AtomicBool::new(tray_ok)));
 
-            if let Err(err) = ui::create_main_window(app.handle(), false) {
+            if let Err(err) = ui::create_main_window(app.handle(), hidden && tray_ok) {
                 sidecar::stop_owned(app.handle());
                 return Err(err.into());
+            }
+
+            if !hidden {
+                autostart::maybe_offer(app.handle());
             }
             Ok(())
         })

@@ -186,6 +186,25 @@ pub fn error_dialog(app: &AppHandle, message: &str) -> bool {
     response == gtk::ResponseType::Yes
 }
 
+/// Nabídka autostartu při prvním spuštění. „Ano“ vrací `true`, „Ne“
+/// (i zavření dialogu) vrací `false`.
+pub fn ask_autostart(app: &AppHandle) -> bool {
+    let parent = app
+        .get_webview_window(WINDOW_LABEL)
+        .and_then(|w| w.gtk_window().ok());
+    let dialog = gtk::MessageDialog::new(
+        parent.as_ref(),
+        gtk::DialogFlags::empty(),
+        gtk::MessageType::Question,
+        gtk::ButtonsType::YesNo,
+        "Spouštět Sysmon při přihlášení?",
+    );
+    dialog.set_title("Sysmon");
+    let response = dialog.run();
+    dialog.close();
+    response == gtk::ResponseType::Yes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
