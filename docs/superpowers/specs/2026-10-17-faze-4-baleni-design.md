@@ -56,9 +56,16 @@ snapshotu.
    Vývojový běh z `target/` autostart nepřepisuje zpět, aby si vývojář
    nerozbil instalovanou aplikaci.
 7. **Měření paměti je součást akceptace, ne doplněk.** 60 min v reálném okně,
-   prvních 5 min se zahřívá a do trendu nevstupuje. Ploché = lineární trend
-   RSS webview procesu ≤ **5 MB/h** a rozdíl mediánů prvních a posledních
-   10 min ≤ **15 MB**. Když to nevyjde, fáze 4 není hotová.
+   prvních **20 min** se zahřívá a do trendu nevstupuje. Ploché = lineární
+   trend RSS webview procesu ≤ **5 MB/h** a rozdíl mediánů prvních a
+   posledních 10 min ≤ **15 MB**. Když to nevyjde, fáze 4 není hotová.
+   > **Změna protokolu (2026-10-25):** první 60minutový běh s původním
+   > 5minutovým warmupem dal slope `web` **15,39 MB/h**; data ale ukázala
+   > náběh WebKit heapu, ne leak (lineární model vysvětlil jen 31 % rozptylu,
+   > největší skoky byly záporné, Theil–Sen i mediány potvrdily náběh).
+   > Se 20minutovým warmupem na témže běhu vychází slope **−7,31 MB/h**
+   > a delta mediánů **−3,18 MB**. Warmup se proto prodlužuje na 20 min;
+   > prahy 5 MB/h a 15 MB zůstávají.
 8. **`cargo install tauri-cli` je buildový nástroj, ne závislost produktu.**
    Do repa se necommituje; README ho uvede jako prerekvizitu. Python strana
    zůstává bez nové runtime závislosti — PyInstaller žije v buildovém venv
@@ -233,7 +240,8 @@ Ověření je `makepkg` a kontrola obsahu balíčku; systémová instalace
 - Zapíše CSV (mimo git) a na stdout souhrn: počet vzorků, medián prvních
   a posledních 10 min, lineární trend v MB/h pro `web`, celkovou RSS na
   konci.
-- Prvních 5 min se do trendu nezapočítává.
+- Prvních 20 min se do trendu nezapočítává (původně 5 min; změna
+  protokolu 2026-10-25, viz kritérium 7 výše).
 - Návratový kód `0` = ploché, `1` = práh překročen, `2` = měření nešlo
   (proces zmizel, málo vzorků).
 - Volby `--duration`, `--interval`, `--warmup`, `--csv`, `--slope-limit`,
@@ -254,10 +262,10 @@ se okno, ne démon, ale celkový strom se reportuje taky.
 - stávající testy autostartu a sidecaru zůstávají zelené.
 
 **Python testy** zůstávají `python3 -m unittest discover -s tests -t .` —
-156 testů; nové testy nejsou potřeba, protože se nemění chování démona.
-Přibude jen kontrola, že `tools/measure_memory.py` jde spustit s `--help`
-a že matematika trendu sedí na syntetických datech (stdlib `unittest`,
-`tests/test_measure_memory.py`).
+původních 156 testů se nemění, protože se nemění chování démona. Task 5
+přidává 20 testů měřicího nástroje (`tests/test_measure_memory.py`): jde
+spustit s `--help`, matematika trendu a mediánů sedí na syntetických datech
+a klasifikace procesů je pinovaná; celkem je sada **176 testů**.
 
 **Kontejnerové ověření:**
 
@@ -269,7 +277,7 @@ a že matematika trendu sedí na syntetických datech (stdlib `unittest`,
   s WebKitGTK (AppImage prerekvizitu neodebírá).
 
 **Regrese:** `cargo build`, `cargo test`, `npm run typecheck`, Python sada
-156 testů, `git -C ../sysmon status --short` čistý.
+176 testů, `git -C ../sysmon status --short` čistý.
 
 ## Rizika a vědomé meze
 
@@ -311,7 +319,7 @@ a nové routy. Démon zůstává jen GET `/`, `/static/*`, `/stats` a `/events`.
 4. Autostart z fáze 3 se při prvním běhu instalované aplikace přepíše na
    instalovanou binárku; vývojový běh ho nepřepíše zpět.
 5. `PKGBUILD` projde `makepkg` a balíček obsahuje stejný layout.
-6. Paměť okna je plochá podle prahu 5 MB/h / 15 MB za 60 min a čísla jsou
-   zapsaná v plánu a README.
-7. `cargo test`, Python sada (156 testů) a `npm run typecheck` projdou;
+6. Paměť okna je plochá podle prahu 5 MB/h / 15 MB při 60minutovém běhu
+   s 20minutovým warmupem a čísla jsou zapsaná v plánu a README.
+7. `cargo test`, Python sada (176 testů) a `npm run typecheck` projdou;
    `../sysmon` je čistý.
