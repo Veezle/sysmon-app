@@ -1,18 +1,20 @@
 # Aktuální stav
 
-- **Fáze 4 běží** na větvi `faze-4-baleni`; hotové Tasky 1–3.
-- **Task 3 hotový** (commity `b22aed3`, `d798b13`): `cargo tauri build`
-  vyrobil `.deb`, `.rpm` a AppImage; `packaging/verify-package.sh` je
-  nainstaluje v `debian:13`/`fedora:42`, ověří strom i `Name=Sysmon`
-  a spustí bundled démona na `/stats`; AppImage ověřen extrakcí.
-- **Rozhodnutí:** ověřování běží celé uvnitř kontejneru (`docker exec curl`,
-  bez `-p`), takže se `/stats` nevystavuje na LAN a nekoliduje s host
-  portem; vstup se kontroluje `[ -f ]` před `docker -v`; neblokující
-  nálezy recenzí jsou v uzavření Tasku 3 v plánu.
-- **Otevřené problémy:** na hostiteli zůstal root-owned prázdný
-  `/nonexistent.deb` z testu recenzenta — smazat `sudo rmdir
-  /nonexistent.deb`.
-- **Další task:** Task 4 (PKGBUILD). Plán a tracker:
-  `docs/superpowers/plans/2026-10-17-faze-4-baleni.md` (+ `.tasks.json`;
-  Tasky 1–3 `completed`, 4 `pending`).
+- **Fáze 4 běží** na větvi `faze-4-baleni`; hotové Tasky 1–4.
+- **Task 4 hotový** (commity `808eff0`, `5d43531`): `packaging/arch/PKGBUILD`
+  vyrobí `sysmon-app-0.1.0-1-x86_64.pkg.tar.zst` s binárkou, bundled
+  démonem, desktopem (`Name=Sysmon`, `StartupWMClass`) a ikonami; `depends`
+  obsahují `webkit2gtk-4.1`, `gtk3` a `libayatana-appindicator`; démon
+  z rozbaleného balíčku odpoví na `/stats`.
+- **Rozhodnutí:** build je soběstačný — `build-daemon.sh` snese chybějící
+  git (`commit=unknown`) a izolovaný `BUILDDIR` build prošel; tarball se
+  generuje ručně s výlukami (`.claude`, `__pycache__`, `sysmon_app/web`,
+  balíčky); zásah do `build-daemon.sh` byla výjimka vynucená nálezem.
+- **Otevřené problémy:** před publikací doplnit `sha256sums`
+  (`makepkg -g`); `license=custom` bez licenčního souboru; tarball není
+  v repu, takže z čistého klonu `makepkg` neproběhne; na hostiteli zůstává
+  root-owned `/nonexistent.deb` (`sudo rmdir /nonexistent.deb`).
+- **Další task:** Task 5 (měření paměti, README, end-to-end). Plán a
+  tracker: `docs/superpowers/plans/2026-10-17-faze-4-baleni.md`
+  (+ `.tasks.json`; Tasky 1–4 `completed`, 5 `pending`).
 - **Fáze 1–3 hotové** a mergnuté do `main`; detaily v `docs/historie.md`.

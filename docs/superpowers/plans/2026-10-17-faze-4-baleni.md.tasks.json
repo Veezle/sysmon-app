@@ -28,7 +28,7 @@
     {
       "id": 3,
       "subject": "Task 4: PKGBUILD",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** packaging/arch/PKGBUILD zbuildi a zabali stejny instalovany layout nativne pro Arch.\n\n**Files:**\n- packaging/arch/PKGBUILD\n- packaging/sysmon-app.desktop\n- .gitignore\n\n**Acceptance Criteria:**\n- makepkg -f v packaging/arch vyrobi sysmon-app-0.1.0-1-x86_64.pkg.tar.zst\n- balicek obsahuje /usr/bin/sysmon-app, /usr/lib/sysmon-app/daemon/sysmon-app-daemon (+ _internal), desktop a obe ikony\n- demon z rozbaleneho balicku odpovi na /stats\n- depends obsahuji webkit2gtk-4.1 a gtk3\n- build neinstaluje nic do systemu\n\n**Verify:** makepkg -f + bsdtar -tf + spusteni demona z fake rootu\n\n```json:metadata\n{\"files\": [\"packaging/arch/PKGBUILD\", \"packaging/sysmon-app.desktop\", \".gitignore\"], \"verifyCommand\": \"makepkg -f + bsdtar -tf + spusteni demona z fake rootu\", \"acceptanceCriteria\": [\"makepkg -f v packaging/arch vyrobi sysmon-app-0.1.0-1-x86_64.pkg.tar.zst\", \"balicek obsahuje /usr/bin/sysmon-app, /usr/lib/sysmon-app/daemon/sysmon-app-daemon (+ _internal), desktop a obe ikony\", \"demon z rozbaleneho balicku odpovi na /stats\", \"depends obsahuji webkit2gtk-4.1 a gtk3\", \"build neinstaluje nic do systemu\"]}\n```",
       "blockedBy": [
         1
@@ -45,5 +45,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-25T18:01:36+01:00"
+  "lastUpdated": "2026-10-25T18:34:33+01:00"
 }

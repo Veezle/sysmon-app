@@ -1126,6 +1126,39 @@ git add packaging/arch/PKGBUILD packaging/sysmon-app.desktop .gitignore
 git commit -m "fáze 4: PKGBUILD pro Arch"
 ```
 
+> **Uzavření Tasku 4 (2026-10-25) — hotovo, commity `808eff0`, `5d43531`:**
+> - `packaging/arch/PKGBUILD` + literální `packaging/sysmon-app.desktop`
+>   (`Name=Sysmon`, `StartupWMClass=Sysmon`, `Categories=System;Monitor;`);
+>   `.gitignore` doplněn o `packaging/arch/*.pkg.tar.zst` (hlavní i debug).
+> - `makepkg -f` vyrobil `sysmon-app-0.1.0-1-x86_64.pkg.tar.zst`
+>   (13,8 MB) s `/usr/bin/sysmon-app`, bundled démonem + `_internal/`,
+>   desktopem a oběma ikonami; démon z rozbaleného balíčku odpoví na
+>   `/stats` (17 klíčů).
+> - `depends = webkit2gtk-4.1, gtk3, libayatana-appindicator`; tray knihovnu
+>   aplikace dlopenuje, takže ji pacman z NEEDED neodvodí.
+> - Zdrojový tarball se tvoří ručně z working tree s výlukami; obsahuje
+>   `Cargo.lock`, `package-lock.json` a `__main__.py`, neobsahuje
+>   `node_modules`, `target`, `.venv`, `packaging/daemon`, `sysmon_app/web`,
+>   `__pycache__`, `.claude` ani vyrobené balíčky.
+> - Soběstačnost: `build-daemon.sh` už neselže bez gitu
+>   (`git rev-parse … || echo unknown`); izolovaný build
+>   (`BUILDDIR=/var/tmp/...`) prošel a `BUILD-INFO` má `commit=unknown`.
+>   Build je idempotentní (druhý běh nad stejným srcdir).
+> - Tento jediný zásah mimo soubory tasku (`packaging/build-daemon.sh`)
+>   vynutil blokující nález; změněn je jen řádek s `git rev-parse`.
+> - Recenze: shoda PASS (neblokující) → kvalita CHANGES_REQUIRED
+>   (2 blokující: závislost na vnějším gitu, chybějící appindicator) →
+>   opravy `5d43531` → delta shoda PASS, delta kvalita APPROVED bez nálezů.
+>
+> **Vědomé meze Tasku 4:** `sha256sums=('SKIP')` — před publikací doplnit
+> `makepkg -g`; `license=('custom')` bez licenčního souboru a prázdné `url`;
+> absolutní `$srcdir` cesta v binárce (makepkg warning, nefunkčnost
+> neprokázána; případně `--remap-path-prefix`); tarball není committed
+> generátor, takže z čistého klonu `makepkg` neproběhne; `src-tauri/gen/`
+> zůstává v tarballu; v balíčku zůstává `daemon/.gitkeep` a `BUILD-INFO`;
+> systémová makepkg konfigurace vyrábí navíc debug balíček (gitignorován);
+> reálné chování traye v GUI ověří až Task 5.
+
 ---
 
 ### Task 5: Měření paměti, README a end-to-end
