@@ -744,7 +744,7 @@ ss -ltn | grep ':8430' || echo "port volný"
 Vývojový režim:
 
 ```bash
-cd /home/veezle/Documents/GithubClones/sysmon-app
+cd "$(git rev-parse --show-toplevel)"
 cargo run --manifest-path src-tauri/Cargo.toml &
 app_pid=$!
 sleep 4
@@ -757,12 +757,13 @@ kill "$app_pid"
 ```bash
 mkdir -p /tmp/sysmon-xdg/autostart /tmp/sysmon-xdg/sysmon-app
 touch /tmp/sysmon-xdg/sysmon-app/autostart-asked
-cat > /tmp/sysmon-xdg/autostart/sysmon-app.desktop <<'EOF'
+repo="$(git rev-parse --show-toplevel)"
+cat > /tmp/sysmon-xdg/autostart/sysmon-app.desktop <<EOF
 [Desktop Entry]
 Type=Application
 Name=Sysmon
 Comment=Dashboard systémových metrik
-Exec=/home/veezle/Documents/GithubClones/sysmon-app/src-tauri/target/debug/sysmon-app --hidden
+Exec=$repo/src-tauri/target/debug/sysmon-app --hidden
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
@@ -922,9 +923,10 @@ nesmí být označen jako instalace.
 - [ ] **Step 5: Ověř AppImage**
 
 ```bash
+repo="$(pwd)"
 rm -rf /tmp/sysmon-appimage && mkdir /tmp/sysmon-appimage
 cd /tmp/sysmon-appimage
-"/home/veezle/Documents/GithubClones/sysmon-app/src-tauri/target/release/bundle/appimage/"*.AppImage \
+"$repo/src-tauri/target/release/bundle/appimage/"*.AppImage \
   --appimage-extract >/dev/null
 test -x squashfs-root/usr/bin/sysmon-app
 test -x squashfs-root/usr/lib/sysmon-app/daemon/sysmon-app-daemon
@@ -1047,7 +1049,7 @@ package() {
 Z kořene repa (tarball obsahuje working tree, ne jen commit):
 
 ```bash
-cd /home/veezle/Documents/GithubClones/sysmon-app
+cd "$(git rev-parse --show-toplevel)"
 tar --exclude-vcs --exclude=node_modules --exclude=target \
     --exclude=packaging/.venv --exclude=packaging/build \
     --exclude=packaging/daemon --exclude=packaging/daemon-build \
