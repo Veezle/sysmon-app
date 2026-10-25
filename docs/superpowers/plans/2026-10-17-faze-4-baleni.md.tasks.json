@@ -19,7 +19,7 @@
     {
       "id": 2,
       "subject": "Task 3: Instalátory a kontejnerové ověření",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** cargo tauri build vyrobi .deb, .rpm a AppImage; .deb a .rpm se nainstaluji v cistych kontejnerech a jejich demon tam bezi.\n\n**Files:**\n- packaging/verify-package.sh\n- src-tauri/tauri.conf.json (jen pri potrebe opravy resources nebo zavislosti)\n\n**Acceptance Criteria:**\n- cargo tauri build --bundles deb,rpm,appimage projde\n- .deb se nainstaluje v debian:13; existuje binarka, bundled demon, desktop s Name=Sysmon a ikona\n- .rpm se nainstaluje ve fedora:42 se stejnou kontrolou\n- demon z nainstalovaneho balicku odpovi na /stats v obou kontejnerech\n- AppImage po --appimage-extract obsahuje stejny strom a Name=Sysmon\n- packaging/verify-package.sh je spustitelny a umi deb i rpm\n\n**Verify:** cargo tauri build + packaging/verify-package.sh deb ... + packaging/verify-package.sh rpm ... + AppImage extract\n\n```json:metadata\n{\"files\": [\"packaging/verify-package.sh\", \"src-tauri/tauri.conf.json\"], \"verifyCommand\": \"cargo tauri build + verify-package.sh deb/rpm + AppImage extract\", \"acceptanceCriteria\": [\"cargo tauri build --bundles deb,rpm,appimage projde\", \".deb se nainstaluje v debian:13; existuje binarka, bundled demon, desktop s Name=Sysmon a ikona\", \".rpm se nainstaluje ve fedora:42 se stejnou kontrolou\", \"demon z nainstalovaneho balicku odpovi na /stats v obou kontejnerech\", \"AppImage po --appimage-extract obsahuje stejny strom a Name=Sysmon\", \"packaging/verify-package.sh je spustitelny a umi deb i rpm\"]}\n```",
       "blockedBy": [
         1
@@ -45,5 +45,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-17T23:35:00+02:00"
+  "lastUpdated": "2026-10-25T18:01:36+01:00"
 }

@@ -961,6 +961,38 @@ git commit -m "fáze 4: instalátory deb, rpm a AppImage"
 
 Pokud se `tauri.conf.json` neměnil, vynech ho z `git add`.
 
+> **Uzavření Tasku 3 (2026-10-25) — hotovo, commity `b22aed3`, `d798b13`:**
+> - `cargo tauri build --bundles deb,rpm,appimage` (tauri-cli 2.12.4) vyrobil
+>   `sysmon-app_0.1.0_amd64.deb` (13,2 MiB), `sysmon-app-0.1.0-1.x86_64.rpm`
+>   (13,2 MiB) a `sysmon-app_0.1.0_amd64.AppImage` (111,8 MiB);
+>   `tauri.conf.json` se neměnil, mapa resources bundleru stačila.
+> - `packaging/verify-package.sh` nainstaluje balíček do `debian:13` /
+>   `fedora:42`, zkontroluje binárku, bundled démona, desktop (`Name=Sysmon`)
+>   a ikonu 128×128; démona spustí a `/stats` i `/events` ověří **uvnitř**
+>   kontejneru (`docker exec curl`, žádné `-p`, takže se `/stats`
+>   nevystavuje na LAN a nekoliduje s hostitelským portem). Vstup kontroluje
+>   `[ -f ]` (GNU `realpath` sám neexistující komponentu neodmítne a Docker
+>   by ji vytvořil jako root-owned adresář); curl má timeouty; Docker má
+>   preflight; SSE musí dodat aspoň jeden bajt.
+> - Naměřeno: `OK: deb` v Debianu 13 i `OK: rpm` ve Fedoře 42 (skutečná
+>   instalace, ne rozbalení); AppImage po `--appimage-extract` má stejný
+>   strom, `Name=Sysmon`, ikonu a jeho démon odpoví na `/stats`; extrahovaný
+>   démon z AppImage je linuxdeployem patchnutý (`RUNPATH=$ORIGIN`), ale
+>   funguje; 53 Rust testů zelených; po bězích nezůstávají kontejnery.
+> - Recenze: shoda PASS (jen neblokující) → kvalita CHANGES_REQUIRED (jeden
+>   blokující: vstup bez kontroly) → opravy `d798b13` → delta shoda PASS,
+>   delta kvalita APPROVED WITH ISSUES bez blokujících nálezů.
+>
+> **Vědomé meze Tasku 3:** rpm větev chrlí ~30 KB dnf progressu na stderr;
+> ikona se kontroluje jen existencí (ne obsahem); SSE pin je „aspoň jeden
+> bajt", ne rámec události (404/prázdné tělo odmítne, neprázdné 200 projde);
+> selhání SSE skončí rc 1 bez vlastní hlášky; `resources` nesou i `.gitkeep`
+> a `BUILD-INFO` (`.gitkeep` drží cestu v čistém klonu); deb `Depends`
+> obsahuje duplicity z ruční konfigurace i bundleru (instalace ověřena);
+> AppImage se ověřuje ručně podle Step 5, ne skriptem; `Categories=` zůstává
+> prázdné (`bundle.category` není nastaveno — mimo kritérium);
+> `StartupWMClass` a asociace okna patří do Tasku 5.
+
 ---
 
 ### Task 4: PKGBUILD
