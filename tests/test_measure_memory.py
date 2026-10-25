@@ -148,5 +148,13 @@ class HelpTest(unittest.TestCase):
         self.assertIn("--delta-limit", result.stdout)
 
 
+class DefaultsTest(unittest.TestCase):
+    def test_default_warmup_is_twenty_minutes(self):
+        # Zmena protokolu z 5 na 20 minut musi byt videt i v parseru;
+        # jinak by se mohl tise vratit stary default.
+        args = measure_memory.build_parser().parse_args([])
+        self.assertEqual(args.warmup, 1200.0)
+
+
 if __name__ == "__main__":
     unittest.main()

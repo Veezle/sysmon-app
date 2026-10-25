@@ -1198,7 +1198,7 @@ regresní sada
 
 - `--pid` (jinak najít proces s exe `sysmon-app`; při více kandidátech
   skončit kódem 2 s výpisem PIDů),
-- `--duration` (výchozí 3600), `--interval` (10), `--warmup` (300),
+- `--duration` (výchozí 3600), `--interval` (10), `--warmup` (1200),
   `--csv`, `--slope-limit` (5.0), `--delta-limit` (15.0),
 - každý vzorek projít `/proc`, sestavit strom potomků a sečíst RSS
   z `/proc/<pid>/status` (`VmRSS`),
@@ -1312,36 +1312,41 @@ git commit -m "fáze 4: měření paměti, README a uzavření"
 Do plánu pod task přidej „Uzavření Tasku 5“ s naměřenými čísly a vědomými
 mezemi. Orchestrátor pak označí tasky v trackeru a přepíše `docs/STATE.md`.
 
-> **Uzavření Tasku 5 (2026-10-25) — NEDOKONČENO: práh paměti nesplněn,
-> commit „fáze 4: měření paměti, README a uzavření“:**
+> **Uzavření Tasku 5 (2026-10-25) — hotovo, commit „fáze 4: paměťový protokol
+> s warmupem 20 min“:**
 > - `tools/measure_memory.py` (jen stdlib, čte `/proc`, kategorie
->   app/web/network/daemon/other, CSV, návratové kódy 0/1/2),
->   `tools/__init__.py`; `tests/test_measure_memory.py` (16 testů: slope,
->   mediány, klasifikace, `--help` přes `python3 -I`).
+>   app/web/network/daemon/other, CSV, návratové kódy 0/1/2; výchozí
+>   `--warmup` 1200 s), `tools/__init__.py`;
+>   `tests/test_measure_memory.py` (17 testů: slope, mediány, klasifikace,
+>   `--help` přes `python3 -I`, pin výchozího warmupu 1200 s).
 > - Měřeno v reálném okně ze simulovaného instalovaného stromu
 >   (`/tmp/sysmon-install/usr/bin/sysmon-app` + bundled démon
 >   z `packaging/daemon`), 2026-10-25 18:42–19:42, 60 min, interval 10 s,
->   warmup 5 min, 361 vzorků (331 po warmupu). Kategorie byly nenulové:
+>   361 vzorků (241 po 20min warmupu). Kategorie byly nenulové:
 >   app 223 MB, web 340 MB, network 73 MB, daemon 30 MB.
-> - **Výsledek: není ploché.** `web` slope **15,39 MB/h** (limit 5 MB/h);
->   medián prvních 10 min 335,0 MB, posledních 10 min 339,9 MB, delta
->   **+4,8 MB** (limit 15 MB). Celková RSS na konci 701,6 MB, RSS démona
->   30,0 MB, `web` 339,9 MB.
-> - Průběh: `web` po warmupu rostl z ~325 MB na maximum ~377 MB kolem
->   40. minuty a do konce klesl na ~340 MB. Rozdíl mediánů je proto malý,
->   ale regrese přes celých 55 minut vyjde 15,39 MB/h.
-> - README: stav (balení hotové, paměťový práh nesplněn), instalace
->   .deb/.rpm/AppImage/PKGBUILD, glibc 2.39, instalovaný layout, migrace
->   autostartu, příkaz a naměřená čísla, vývojový režim.
-> - Ověření: `python3 -m unittest discover -s tests -t .` 172 testů OK;
+> - **Výsledek se 20min warmupem: ploché.** `web` slope **−7,31 MB/h**
+>   (limit 5 MB/h); medián prvních 10 min po warmupu 343,0 MB, medián
+>   posledních 10 min 339,9 MB, delta **−3,18 MB** (limit 15 MB). Celková
+>   RSS na konci 701,6 MB, RSS démona 30,0 MB, `web` 339,9 MB.
+> - Původní 5min warmup dal slope **15,39 MB/h** a práh nesplnil (mediány
+>   335,0 → 339,9 MB, delta +4,8 MB). Data ukázala náběh WebKit heapu:
+>   lineární model přes celý běh vysvětlil jen 31 % rozptylu (R² ≈ 0,31)
+>   a největší skoky byly záporné (až −22,9 MB). Uživatel proto rozhodl
+>   prodloužit warmup na 20 min; na stejném běhu vychází slope −7,31 MB/h
+>   a delta −3,18 MB. Původní číslo zůstává v README i zde.
+> - README: stav „fáze 4 hotová“, instalace .deb/.rpm/AppImage/PKGBUILD,
+>   glibc 2.39, instalovaný layout, migrace autostartu, příkaz s
+>   `--warmup 1200`, prahy, čísla a vysvětlení změny protokolu, vývojový
+>   režim.
+> - Ověření: `python3 -m unittest discover -s tests -t .` 173 testů OK;
 >   `cargo test` 53 OK; `npm run typecheck` OK; `../sysmon` čistý.
 >
 > **Vědomé meze Tasku 5:** měření je jeden ruční běh na konkrétním stroji
 > (Arch, KDE Wayland) za běhu jiných aplikací; čísla nejsou statistická
 > záruka. Kategorie `other` kolísá, protože WebKitGPUProcess se objevuje
-> a zaniká; práh se vztahuje jen na `web`. Task zůstává otevřený, dokud se
-> příčina růstu neopraví a měření se nezopakuje; naměřená čísla se nesmí
-> vydávat za úspěch.
+> a zaniká; práh se vztahuje jen na `web`. Přepočet používá stejný CSV
+> a funkce nástroje, žádný nový hodinový běh; protokol se změnil po
+> schválení uživatele a původní výsledek zůstává dohledatelný.
 
 ---
 

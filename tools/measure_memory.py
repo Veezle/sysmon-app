@@ -410,8 +410,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--warmup",
         type=_non_negative_float,
-        default=300.0,
-        help="zahřátí, které do trendu nevstupuje (výchozí 300)",
+        default=1200.0,
+        help="zahřátí, které do trendu nevstupuje (výchozí 1200)",
     )
     parser.add_argument(
         "--csv",

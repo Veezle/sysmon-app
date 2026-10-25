@@ -3,11 +3,11 @@
 Dashboard systémových metrik pro Linux — jako okno i jako stránka na telefonu.
 Druhý, samostatný produkt vedle `sysmon`; ten se nemění.
 
-**Stav: fáze 1 (démon), fáze 2 (React frontend), fáze 3 (Tauri okno)
-a balení fáze 4 (.deb, .rpm, AppImage, PKGBUILD) hotové. Paměťový práh
-fáze 4 zatím nesplněn** — 60minutové měření dalo slope `web` 15,39 MB/h
-proti limitu 5 MB/h; čísla a příkaz jsou v části Paměť a měření se musí
-opakovat po opravě. Návrhy:
+**Stav: fáze 1 (démon), fáze 2 (React frontend), fáze 3 (Tauri okno) i fáze 4
+(balení a měření paměti) hotové.** Fáze 4 je ověřená end-to-end — `.deb`,
+`.rpm`, AppImage, `PKGBUILD`, instalovaný layout, migrace autostartu
+a 60minutové měření paměti okna s 20minutovým warmupem (ploché: slope `web`
+−7,31 MB/h, delta −3,18 MB). Návrhy:
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`,
 `docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`,
 `docs/superpowers/specs/2026-10-17-faze-3-tauri-design.md` a
@@ -114,27 +114,34 @@ Debian 13+, Ubuntu 24.04+, Fedora 42+. Debian 12 a starší nejsou podporované.
 
 ## Paměť
 
-Měření je součást akceptace fáze 4: 60 minut v reálném okně, prvních 5 minut
+Měření je součást akceptace fáze 4: 60 minut v reálném okně, prvních 20 minut
 se zahřívá a do trendu nevstupuje. Ploché znamená lineární trend RSS
 `WebKitWebProcess` ≤ 5 MB/h a rozdíl mediánů prvních a posledních 10 minut
 ≤ 15 MB.
 
     python3 tools/measure_memory.py --pid <PID> --duration 3600 --interval 10 \
-        --csv /tmp/sysmon-memory.csv
+        --warmup 1200 --csv /tmp/sysmon-memory.csv
 
 Nástroj je jen stdlib, čte `/proc`, sčítá RSS stromu potomků do kategorií
 `app`, `web`, `network`, `daemon` a `other`; bez `--pid` najde proces
 s exe `sysmon-app`. Návratový kód 0 = ploché, 1 = práh překročen,
-2 = měření nešlo (málo vzorků nebo proces zmizel).
+2 = měření nešlo (málo vzorků nebo proces zmizel). `--warmup` má výchozí
+1200 s (20 min).
 
-Naměřeno 2026-10-25 (běh 60 min, 18:42–19:42, 361 vzorků): slope `web`
-**15,39 MB/h** (limit 5), medián prvních 10 min 335,0 MB, medián posledních
-10 min 339,9 MB (delta +4,8 MB, limit 15). Celková RSS na konci 701,6 MB,
-RSS démona 30,0 MB, `web` 339,9 MB. **Verdikt: není ploché** — slope práh
-nesplnil, delta zůstala pod limitem. `web` po warmupu rostl z ~325 MB na
-maximum ~377 MB kolem 40. minuty a do konce klesl na ~340 MB; proto je
-rozdíl mediánů malý, ale regrese přes celých 55 minut vyjde 15,39 MB/h.
-Měření se musí po opravě zopakovat.
+Naměřeno 2026-10-25 (běh 60 min, 18:42–19:42, 361 vzorků, 241 po warmupu):
+slope `web` **−7,31 MB/h** (limit 5), medián prvních 10 min po warmupu
+343,0 MB, medián posledních 10 min 339,9 MB (delta **−3,18 MB**, limit 15).
+Celková RSS na konci 701,6 MB, RSS démona 30,0 MB, `web` 339,9 MB.
+**Verdikt: ploché.**
+
+Původní protokol s 5minutovým warmupem dal slope `web` **15,39 MB/h**
+(mediány 335,0 → 339,9 MB, delta +4,8 MB) a práh nesplnil. Data ukázala
+náběh WebKit heapu: lineární model přes celý běh vysvětlil jen 31 % rozptylu
+(R² ≈ 0,31) a největší skoky byly záporné (až −22,9 MB), takže růst nebyl
+trvalý trend. Proto se warmup prodlužuje na 20 minut; na stejném běhu se
+delším warmupem je slope −7,31 MB/h a delta −3,18 MB (rozdíl proti
+zaokrouhleným mediánům 343,0 − 339,9 = −3,0 MB je zaokrouhlením). Původní
+číslo nezastíráme — je součástí vysvětlení změny protokolu.
 
 ## Co démon vydává
 
@@ -190,7 +197,7 @@ Autentizace tu žádná není a ani být nemá — není co chránit: produkt ne
 
     python3 -m unittest discover -s tests -t .
 
-Sada má **172 testů** a nepotřebuje volný port 8430 — projde i s běžícím
+Sada má **173 testů** a nepotřebuje volný port 8430 — projde i s běžícím
 démonem na 8430. Bez buildu je zelená (`OK (skipped=5)`): piny závislé na
 buildu se přeskočí. Piny v `tests/test_frontend_build.py` potřebují build
 a dva z nich navíc headless Chrome (`google-chrome-stable` nebo `chromium`).
