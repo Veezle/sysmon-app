@@ -3,12 +3,15 @@
 Dashboard systémových metrik pro Linux — jako okno i jako stránka na telefonu.
 Druhý, samostatný produkt vedle `sysmon`; ten se nemění.
 
-**Stav: fáze 1 (démon), fáze 2 (React frontend) i fáze 3 (Tauri okno) hotové.**
-Fáze 3 je ověřená end-to-end — okno, sidecar, dozor, tray, autostart i jedna
-instance. Balení a měření paměti (fáze 4) jsou zatím jen v návrhu. Návrhy:
+**Stav: fáze 1 (démon), fáze 2 (React frontend), fáze 3 (Tauri okno)
+a balení fáze 4 (.deb, .rpm, AppImage, PKGBUILD) hotové. Paměťový práh
+fáze 4 zatím nesplněn** — 60minutové měření dalo slope `web` 15,39 MB/h
+proti limitu 5 MB/h; čísla a příkaz jsou v části Paměť a měření se musí
+opakovat po opravě. Návrhy:
 `docs/superpowers/specs/2026-10-15-sysmon-app-design.md`,
-`docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md` a
-`docs/superpowers/specs/2026-10-17-faze-3-tauri-design.md`.
+`docs/superpowers/specs/2026-10-16-faze-2-frontend-design.md`,
+`docs/superpowers/specs/2026-10-17-faze-3-tauri-design.md` a
+`docs/superpowers/specs/2026-10-17-faze-4-baleni-design.md`.
 
 ## Spuštění démona
 
@@ -57,15 +60,81 @@ Zavřením okna aplikace neskončí — jen se schová do traye. Tray menu má
 „Otevřít dashboard“ a „Ukončit“. V prostředí bez StatusNotifier watchera se
 tray nevytvoří a zavření okna aplikaci ukončí. Spuštění s `--hidden` začne jen
 v trayi (bez traye se okno ukáže); tuhle volbu používá autostart, který se
-nabídne při prvním spuštění. Vědomá mez fáze 3: `.desktop` zapsaný autostartem
-nenastavuje pracovní adresář, takže po přihlášení aplikace démona ze zdrojů
-nenajde, pokud už na 8430 neběží. Autostart je proto v této fázi funkční jen
-s už běžícím démonem; ruční spuštění z kořene repa tuhle podmínku nemá.
+nabídne při prvním spuštění. Instalovaná aplikace při prvním běhu tiše
+přepíše `.desktop` z vývojové cesty (`src-tauri/target/…`) na
+`/usr/bin/sysmon-app`, takže po přihlášení najde bundled démona i bez
+otevřeného terminálu. Vývojový běh naopak instalovaný autostart nepřepisuje.
 
-Démon se v této fázi spouští ze zdrojů (`python3 -m sysmon_app`). Aplikace musí
-běžet z kořene repa, jen když má démona sama spustit — tedy když na 8430 nic
-neposlouchá; s běžícím démonem jde spustit i odjinud. PyInstaller binárka,
-`.deb`/`.rpm`/AppImage a instalované cesty patří do fáze 4.
+Vývojový režim zůstává: `cargo run` z kořene repa spustí démona ze zdrojů
+(`python3 -m sysmon_app`), pokud na 8430 nic neposlouchá. Nainstalovaná
+aplikace naproti tomu používá bundled démona
+z `/usr/lib/sysmon-app/daemon/` a žádný systémový Python nepotřebuje.
+
+## Instalace
+
+Balíčky vyrábí Tauri bundler z kořene repa:
+
+    cargo install tauri-cli --version "^2" --locked   # jen buildový nástroj
+    cargo tauri build --bundles deb,rpm,appimage
+
+Výsledky jsou v `src-tauri/target/release/bundle/`. Runtime závislost je jen
+WebKitGTK a GTK; `depends` v `src-tauri/tauri.conf.json` je deklaruje pro deb
+i rpm.
+
+`.deb` nainstaluj `sudo apt install ./sysmon-app_*.deb` a `.rpm`
+`sudo dnf install ./sysmon-app-*.rpm`. WebKitGTK se tím dotáhne sám; ručně
+stačí `sudo pacman -S webkit2gtk-4.1` na Archu, `libwebkit2gtk-4.1-0` na
+Debianu a `webkit2gtk4.1` na Fedoru.
+
+AppImage je jeden soubor, ale **WebKitGTK si nenese** — bez `webkit2gtk-4.1`
+se nespustí. Po `chmod +x` ho jde spustit dvojklikem i z terminálu.
+
+Pro Arch je v `packaging/arch/PKGBUILD` zdrojový build bez Dockeru:
+
+    git archive --prefix=sysmon-app-0.1.0/ \
+        -o packaging/arch/sysmon-app-0.1.0.tar.gz HEAD
+    cd packaging/arch && makepkg -si
+
+Build potřebuje síť: `npm ci`, `cargo` a `pip install pyinstaller`
+(PyInstaller žije v `packaging/.venv`, který je v `.gitignore`). `makepkg`
+síť nezakazuje; je to vědomá vlastnost zdrojového buildu. `cargo install
+tauri-cli` je jen buildový nástroj, ne závislost produktu.
+
+Všechny čtyři cesty mají stejný layout:
+
+    /usr/bin/sysmon-app
+    /usr/lib/sysmon-app/daemon/sysmon-app-daemon
+    /usr/lib/sysmon-app/daemon/_internal/…
+    /usr/share/applications/sysmon-app.desktop
+    /usr/share/icons/hicolor/{32x32,128x128}/apps/sysmon-app.png
+
+Démon je součástí balíčku (PyInstaller onedir), takže instalace
+**nepotřebuje systémový Python ani `psutil`**. Minimální glibc je 2.39:
+Debian 13+, Ubuntu 24.04+, Fedora 42+. Debian 12 a starší nejsou podporované.
+
+## Paměť
+
+Měření je součást akceptace fáze 4: 60 minut v reálném okně, prvních 5 minut
+se zahřívá a do trendu nevstupuje. Ploché znamená lineární trend RSS
+`WebKitWebProcess` ≤ 5 MB/h a rozdíl mediánů prvních a posledních 10 minut
+≤ 15 MB.
+
+    python3 tools/measure_memory.py --pid <PID> --duration 3600 --interval 10 \
+        --csv /tmp/sysmon-memory.csv
+
+Nástroj je jen stdlib, čte `/proc`, sčítá RSS stromu potomků do kategorií
+`app`, `web`, `network`, `daemon` a `other`; bez `--pid` najde proces
+s exe `sysmon-app`. Návratový kód 0 = ploché, 1 = práh překročen,
+2 = měření nešlo (málo vzorků nebo proces zmizel).
+
+Naměřeno 2026-10-25 (běh 60 min, 18:42–19:42, 361 vzorků): slope `web`
+**15,39 MB/h** (limit 5), medián prvních 10 min 335,0 MB, medián posledních
+10 min 339,9 MB (delta +4,8 MB, limit 15). Celková RSS na konci 701,6 MB,
+RSS démona 30,0 MB, `web` 339,9 MB. **Verdikt: není ploché** — slope práh
+nesplnil, delta zůstala pod limitem. `web` po warmupu rostl z ~325 MB na
+maximum ~377 MB kolem 40. minuty a do konce klesl na ~340 MB; proto je
+rozdíl mediánů malý, ale regrese přes celých 55 minut vyjde 15,39 MB/h.
+Měření se musí po opravě zopakovat.
 
 ## Co démon vydává
 
@@ -121,7 +190,7 @@ Autentizace tu žádná není a ani být nemá — není co chránit: produkt ne
 
     python3 -m unittest discover -s tests -t .
 
-Sada má **156 testů** a nepotřebuje volný port 8430 — projde i s běžícím
+Sada má **172 testů** a nepotřebuje volný port 8430 — projde i s běžícím
 démonem na 8430. Bez buildu je zelená (`OK (skipped=5)`): piny závislé na
 buildu se přeskočí. Piny v `tests/test_frontend_build.py` potřebují build
 a dva z nich navíc headless Chrome (`google-chrome-stable` nebo `chromium`).

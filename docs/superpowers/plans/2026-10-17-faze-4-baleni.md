@@ -1312,6 +1312,37 @@ git commit -m "fáze 4: měření paměti, README a uzavření"
 Do plánu pod task přidej „Uzavření Tasku 5“ s naměřenými čísly a vědomými
 mezemi. Orchestrátor pak označí tasky v trackeru a přepíše `docs/STATE.md`.
 
+> **Uzavření Tasku 5 (2026-10-25) — NEDOKONČENO: práh paměti nesplněn,
+> commit „fáze 4: měření paměti, README a uzavření“:**
+> - `tools/measure_memory.py` (jen stdlib, čte `/proc`, kategorie
+>   app/web/network/daemon/other, CSV, návratové kódy 0/1/2),
+>   `tools/__init__.py`; `tests/test_measure_memory.py` (16 testů: slope,
+>   mediány, klasifikace, `--help` přes `python3 -I`).
+> - Měřeno v reálném okně ze simulovaného instalovaného stromu
+>   (`/tmp/sysmon-install/usr/bin/sysmon-app` + bundled démon
+>   z `packaging/daemon`), 2026-10-25 18:42–19:42, 60 min, interval 10 s,
+>   warmup 5 min, 361 vzorků (331 po warmupu). Kategorie byly nenulové:
+>   app 223 MB, web 340 MB, network 73 MB, daemon 30 MB.
+> - **Výsledek: není ploché.** `web` slope **15,39 MB/h** (limit 5 MB/h);
+>   medián prvních 10 min 335,0 MB, posledních 10 min 339,9 MB, delta
+>   **+4,8 MB** (limit 15 MB). Celková RSS na konci 701,6 MB, RSS démona
+>   30,0 MB, `web` 339,9 MB.
+> - Průběh: `web` po warmupu rostl z ~325 MB na maximum ~377 MB kolem
+>   40. minuty a do konce klesl na ~340 MB. Rozdíl mediánů je proto malý,
+>   ale regrese přes celých 55 minut vyjde 15,39 MB/h.
+> - README: stav (balení hotové, paměťový práh nesplněn), instalace
+>   .deb/.rpm/AppImage/PKGBUILD, glibc 2.39, instalovaný layout, migrace
+>   autostartu, příkaz a naměřená čísla, vývojový režim.
+> - Ověření: `python3 -m unittest discover -s tests -t .` 172 testů OK;
+>   `cargo test` 53 OK; `npm run typecheck` OK; `../sysmon` čistý.
+>
+> **Vědomé meze Tasku 5:** měření je jeden ruční běh na konkrétním stroji
+> (Arch, KDE Wayland) za běhu jiných aplikací; čísla nejsou statistická
+> záruka. Kategorie `other` kolísá, protože WebKitGPUProcess se objevuje
+> a zaniká; práh se vztahuje jen na `web`. Task zůstává otevřený, dokud se
+> příčina růstu neopraví a měření se nezopakuje; naměřená čísla se nesmí
+> vydávat za úspěch.
+
 ---
 
 ## Hotovo znamená
