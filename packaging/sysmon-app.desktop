@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Sysmon
+Comment=Dashboard systémových metrik
+Exec=sysmon-app
+Icon=sysmon-app
+Terminal=false
+Categories=System;Monitor;

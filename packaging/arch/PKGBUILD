@@ -1,0 +1,32 @@
+# Maintainer: Veezle
+pkgname=sysmon-app
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Dashboard systémových metrik pro Linux"
+arch=('x86_64')
+license=('custom')
+depends=('webkit2gtk-4.1' 'gtk3')
+makedepends=('rust' 'cargo' 'nodejs' 'npm' 'python' 'python-psutil')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    ( cd frontend && npm ci && npm run build )
+    packaging/build-daemon.sh --host
+    cargo build --release --manifest-path src-tauri/Cargo.toml
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 src-tauri/target/release/sysmon-app \
+        "$pkgdir/usr/bin/sysmon-app"
+    install -d "$pkgdir/usr/lib/sysmon-app"
+    cp -a packaging/daemon "$pkgdir/usr/lib/sysmon-app/daemon"
+    install -Dm644 src-tauri/icons/32x32.png \
+        "$pkgdir/usr/share/icons/hicolor/32x32/apps/sysmon-app.png"
+    install -Dm644 src-tauri/icons/128x128.png \
+        "$pkgdir/usr/share/icons/hicolor/128x128/apps/sysmon-app.png"
+    install -Dm644 packaging/sysmon-app.desktop \
+        "$pkgdir/usr/share/applications/sysmon-app.desktop"
+}
