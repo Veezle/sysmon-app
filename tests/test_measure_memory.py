@@ -38,6 +38,15 @@ class SlopeTest(unittest.TestCase):
             measure_memory.slope_mb_per_hour(points), -60.0, places=6
         )
 
+    def test_ols_differs_from_endpoint_slope(self):
+        # Posledni bod je sum: endpoint slope (last-first)/(dt) vyjde 0,
+        # ale OLS vidi vzestup prvnich tri bodu a vyjde 36 MB/h. Test ma
+        # zabit zamenou nejmensich ctvercu za endpoint slope.
+        points = [(0, 0), (600, 60 * MB), (1200, 120 * MB), (1800, 0)]
+        self.assertAlmostEqual(
+            measure_memory.slope_mb_per_hour(points), 36.0, places=6
+        )
+
     def test_fewer_than_two_points_raises(self):
         with self.assertRaises(ValueError):
             measure_memory.slope_mb_per_hour([(0, MB)])
@@ -70,6 +79,25 @@ class MedianDeltaTest(unittest.TestCase):
     def test_empty_raises(self):
         with self.assertRaises(ValueError):
             measure_memory.median_delta([])
+
+    def test_median_is_not_mean_on_asymmetric_windows(self):
+        # Prvni okno: sest nul a jeden outlier 100 MB -> median 0 MB,
+        # prumer ~14,3 MB. Posledni okno: sedm hodnot 50 MB -> median
+        # 50 MB. Medianova delta je 50 MB; prumetrova by dala ~35,7 MB.
+        points = [
+            (0, 0),
+            (100, 0),
+            (200, 0),
+            (300, 0),
+            (400, 0),
+            (500, 0),
+            (600, 100 * MB),
+        ]
+        points += [(t, 50 * MB) for t in range(1400, 2001, 100)]
+        first, last, delta = measure_memory.median_delta(points)
+        self.assertAlmostEqual(first, 0.0, places=6)
+        self.assertAlmostEqual(last, 50.0, places=6)
+        self.assertAlmostEqual(delta, 50.0, places=6)
 
 
 class ClassificationTest(unittest.TestCase):
@@ -114,6 +142,12 @@ class ClassificationTest(unittest.TestCase):
             measure_memory.classify_cmdline(
                 ["/usr/bin/python3.13", "-m", "sysmon_app"]
             ),
+            "daemon",
+        )
+
+    def test_python_module_daemon_without_space(self):
+        self.assertEqual(
+            measure_memory.classify_cmdline(["python3", "-msysmon_app"]),
             "daemon",
         )
 

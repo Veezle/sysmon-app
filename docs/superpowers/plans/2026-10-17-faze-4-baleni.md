@@ -1317,8 +1317,9 @@ mezemi. Orchestrátor pak označí tasky v trackeru a přepíše `docs/STATE.md`
 > - `tools/measure_memory.py` (jen stdlib, čte `/proc`, kategorie
 >   app/web/network/daemon/other, CSV, návratové kódy 0/1/2; výchozí
 >   `--warmup` 1200 s), `tools/__init__.py`;
->   `tests/test_measure_memory.py` (17 testů: slope, mediány, klasifikace,
->   `--help` přes `python3 -I`, pin výchozího warmupu 1200 s).
+>   `tests/test_measure_memory.py` (20 testů: slope včetně OLS≠endpoint,
+>   mediány včetně medián≠průměr, klasifikace, `--help` přes `python3 -I`,
+>   pin výchozího warmupu 1200 s).
 > - Měřeno v reálném okně ze simulovaného instalovaného stromu
 >   (`/tmp/sysmon-install/usr/bin/sysmon-app` + bundled démon
 >   z `packaging/daemon`), 2026-10-25 18:42–19:42, 60 min, interval 10 s,
@@ -1338,7 +1339,7 @@ mezemi. Orchestrátor pak označí tasky v trackeru a přepíše `docs/STATE.md`
 >   glibc 2.39, instalovaný layout, migrace autostartu, příkaz s
 >   `--warmup 1200`, prahy, čísla a vysvětlení změny protokolu, vývojový
 >   režim.
-> - Ověření: `python3 -m unittest discover -s tests -t .` 173 testů OK;
+> - Ověření: `python3 -m unittest discover -s tests -t .` 176 testů OK;
 >   `cargo test` 53 OK; `npm run typecheck` OK; `../sysmon` čistý.
 >
 > **Vědomé meze Tasku 5:** měření je jeden ruční běh na konkrétním stroji

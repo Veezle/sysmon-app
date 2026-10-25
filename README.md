@@ -139,9 +139,9 @@ Původní protokol s 5minutovým warmupem dal slope `web` **15,39 MB/h**
 náběh WebKit heapu: lineární model přes celý běh vysvětlil jen 31 % rozptylu
 (R² ≈ 0,31) a největší skoky byly záporné (až −22,9 MB), takže růst nebyl
 trvalý trend. Proto se warmup prodlužuje na 20 minut; na stejném běhu se
-delším warmupem je slope −7,31 MB/h a delta −3,18 MB (rozdíl proti
-zaokrouhleným mediánům 343,0 − 339,9 = −3,0 MB je zaokrouhlením). Původní
-číslo nezastíráme — je součástí vysvětlení změny protokolu.
+delším warmupem je slope −7,31 MB/h a delta −3,18 MB (rozdíl zaokrouhlených
+mediánů 339,9 − 343,0 = −3,1 MB; přesná hodnota z funkcí je −3,18 MB).
+Původní číslo nezastíráme — je součástí vysvětlení změny protokolu.
 
 ## Co démon vydává
 
@@ -197,7 +197,7 @@ Autentizace tu žádná není a ani být nemá — není co chránit: produkt ne
 
     python3 -m unittest discover -s tests -t .
 
-Sada má **173 testů** a nepotřebuje volný port 8430 — projde i s běžícím
+Sada má **176 testů** a nepotřebuje volný port 8430 — projde i s běžícím
 démonem na 8430. Bez buildu je zelená (`OK (skipped=5)`): piny závislé na
 buildu se přeskočí. Piny v `tests/test_frontend_build.py` potřebují build
 a dva z nich navíc headless Chrome (`google-chrome-stable` nebo `chromium`).
