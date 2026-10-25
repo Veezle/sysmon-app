@@ -5,16 +5,17 @@ pkgrel=1
 pkgdesc="Dashboard systémových metrik pro Linux"
 arch=('x86_64')
 license=('custom')
-depends=('webkit2gtk-4.1' 'gtk3')
+depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator')
 makedepends=('rust' 'cargo' 'nodejs' 'npm' 'python' 'python-psutil')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
     cd "$pkgname-$pkgver"
+    rm -rf sysmon_app/web
     ( cd frontend && npm ci && npm run build )
     packaging/build-daemon.sh --host
-    cargo build --release --manifest-path src-tauri/Cargo.toml
+    cargo build --release --locked --manifest-path src-tauri/Cargo.toml
 }
 
 package() {

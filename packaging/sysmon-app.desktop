@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Sysmon
+StartupWMClass=Sysmon
 Comment=Dashboard systémových metrik
 Exec=sysmon-app
 Icon=sysmon-app

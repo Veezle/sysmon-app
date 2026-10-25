@@ -115,7 +115,7 @@ mv packaging/daemon-build/sysmon-app-daemon packaging/daemon
 rmdir packaging/daemon-build
 
 BUILT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-COMMIT="$(git rev-parse --short HEAD)"
+COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 {
     echo "mode=$MODE"
     echo "pyinstaller=$PYINSTALLER_VERSION"
