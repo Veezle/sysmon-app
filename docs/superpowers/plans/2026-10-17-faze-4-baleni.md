@@ -1348,6 +1348,17 @@ mezemi. Orchestrátor pak označí tasky v trackeru a přepíše `docs/STATE.md`
 > a zaniká; práh se vztahuje jen na `web`. Přepočet používá stejný CSV
 > a funkce nástroje, žádný nový hodinový běh; protokol se změnil po
 > schválení uživatele a původní výsledek zůstává dohledatelný.
+> - Krátké běhy (< 20 min po warmupu) mohou mít překrývající se mediánová
+>   okna; delta pak vyjde 0 a nástroj to nehlásí. Oficiální 60min protokol
+>   to neovlivní.
+> - Identita kořene při `--pid` se nepinuje přes `starttime`/exe, jen
+>   existence a state; teoretické PID reuse není ošetřené.
+> - Testy nepinují CSV hlavičku, rc kódy ani výchozí interval/duration/
+>   limity; acceptance žádá jen slope, mediány, klasifikaci a `--help`.
+> - Dva souběžné běhy do stejného CSV se přepisují; nástroj nemá zámek.
+> - Klasifikační false positives hrozí jen u nereálných názvů binárek
+>   (`-msysmon_app_other`, jméno obsahující `WebKitWebProcess`); měří se
+>   jen potomci okna.
 
 ---
 

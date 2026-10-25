@@ -238,15 +238,21 @@ def measure(
 ) -> int:
     csv_handle = None
     csv_writer = None
+    csv_failed = False
     if csv_path is not None:
         try:
             csv_handle = open(csv_path, "w", encoding="utf-8", newline="")
+            csv_writer = csv.writer(csv_handle, lineterminator="\n")
+            csv_writer.writerow(CSV_HEADER.split(","))
+            csv_handle.flush()
         except OSError as err:
             print(f"CSV nelze zapsat: {err}", file=sys.stderr)
+            if csv_handle is not None:
+                try:
+                    csv_handle.close()
+                except OSError:
+                    pass
             return 2
-        csv_writer = csv.writer(csv_handle, lineterminator="\n")
-        csv_writer.writerow(CSV_HEADER.split(","))
-        csv_handle.flush()
 
     samples: list[dict[str, int]] = []
     start = time.monotonic()
@@ -268,8 +274,16 @@ def measure(
             sample["elapsed_s"] = elapsed_s
             samples.append(sample)
             if csv_writer is not None:
-                _write_csv_row(csv_writer, elapsed_s, sample)
-                csv_handle.flush()
+                try:
+                    _write_csv_row(csv_writer, elapsed_s, sample)
+                    csv_handle.flush()
+                except OSError as err:
+                    print(
+                        f"Zápis CSV selhal: {err}; měření končí.",
+                        file=sys.stderr,
+                    )
+                    csv_failed = True
+                    break
             print(
                 f"t={elapsed_s:4d}s app={_mb(sample['app']):7.1f} "
                 f"web={_mb(sample['web']):7.1f} "
@@ -281,7 +295,8 @@ def measure(
             )
             if now >= duration:
                 break
-            delay = next_at - (time.monotonic() - start)
+            elapsed_now = time.monotonic() - start
+            delay = min(next_at - elapsed_now, duration - elapsed_now)
             if delay > 0:
                 time.sleep(delay)
             next_at += interval
@@ -290,7 +305,11 @@ def measure(
         vanished = True
     finally:
         if csv_handle is not None:
-            csv_handle.close()
+            try:
+                csv_handle.close()
+            except OSError as err:
+                print(f"Zavření CSV selhalo: {err}", file=sys.stderr)
+                csv_failed = True
 
     elapsed_last = samples[-1]["elapsed_s"] if samples else 0
     print(
@@ -304,6 +323,12 @@ def measure(
         print("Žádný vzorek; měření nelze vyhodnotit.", file=sys.stderr)
         return 2
     if vanished:
+        return 2
+    if csv_failed:
+        print(
+            "Měření nelze vyhodnotit: zápis CSV selhal.",
+            file=sys.stderr,
+        )
         return 2
 
     # Do analyzy jdou jen vzorky po zahrati. Rozhoduje skutecny cas vzorku,
@@ -333,8 +358,12 @@ def measure(
             file=sys.stderr,
         )
 
-    slope = slope_mb_per_hour(web_points)
-    first_med, last_med, delta = median_delta(web_points)
+    try:
+        slope = slope_mb_per_hour(web_points)
+        first_med, last_med, delta = median_delta(web_points)
+    except ValueError as err:
+        print(f"Trend nelze spočítat: {err}", file=sys.stderr)
+        return 2
     total_last = post[-1]["total"]
     web_last = post[-1]["web"]
 

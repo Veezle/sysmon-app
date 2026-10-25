@@ -2,8 +2,8 @@
 
 Testy nedrzi /proc: slope a mediany se pocitaji z rucne zadanych bodu.
 Klasifikace se testuje na cmdline retezcich. `--help` se spousti jako
-subprocess s `-I`, takze test selze, kdyby nastroj importoval nestandardni
-knihovnu.
+subprocess s `-I -S`: `-S` vypne site-packages, takze test selze, kdyby
+nastroj importoval nestandardni knihovnu.
 """
 
 import subprocess
@@ -168,8 +168,10 @@ class ClassificationTest(unittest.TestCase):
 
 class HelpTest(unittest.TestCase):
     def test_help_runs_without_site_packages(self):
+        # -I izoluje prostredi, -S vypne site-packages; dohromady pinuji,
+        # ze nastroj vystaci se stdlib.
         result = subprocess.run(
-            [sys.executable, "-I", str(TOOL), "--help"],
+            [sys.executable, "-I", "-S", str(TOOL), "--help"],
             capture_output=True,
             text=True,
             timeout=30,
