@@ -284,10 +284,12 @@ a klasifikace procesů je pinovaná; celkem je sada **176 testů**.
 - **Stahování v Dockeru.** Obrazy i závislosti se tahají ze sítě. Když síť
   není, .deb/.rpm se ověří jen rozbalením a do uzavření se to zapíše jako
   vědomá mez; nesmí se to vydávat za instalaci.
-- **AppImage bez WebKitGTK nefunguje.** Webview se nenese; README to uvede
-  jako prerekvizitu. Uvnitř kontejneru bez GTK se AppImage netestuje.
-- **GlIBC 2.39+.** Debian 12 a starší nejsou podporované. Není to vada, je
-  to hranice daná buildem Tauri binárky na Archu a démona v Debianu 13.
+- **AppImage si WebKitGTK veze sám** (linuxdeploy zabalí i webview), takže
+  systémový `webkit2gtk-4.1` nepotřebuje; je ale zbuilděný na Archu, takže
+  jeho knihovny vyžadují glibc 2.44 — na starších distribucích se nespustí.
+- **GlIBC 2.39+ pro `.deb`/`.rpm`.** Debian 12 a starší nejsou podporované.
+  Není to vada, je to hranice daná buildem Tauri binárky na Archu a démona
+  v Debianu 13.
 - **Docker je buildová prerekvizita portabilních balíčků.** Bez něj jde jen
   `--host` build pro Arch, který se na jiných distribucích nespustí. README
   to řekne; `PKGBUILD` Docker nepotřebuje.

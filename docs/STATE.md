@@ -12,8 +12,8 @@
   WebKit heapu, ne leak); prahy 5 MB/h a 15 MB zůstávají.
 - **Otevřené meze:** měření je jeden ruční běh (Arch, KDE Wayland);
   krátké běhy mají překryv mediánových oken; PID reuse není pinovaný;
-  testy nepinují CSV/rc/defaulty; souběžné CSV se přepisuje; tarball
-  není v repu, `sha256sums=('SKIP')`, `license=custom`; hostitel má
-  root-owned `/nonexistent.deb` (`sudo rmdir`).
+  testy nepinují CSV hlavičku, návratové kódy ani zbývající defaulty
+  (interval, duration, limity — warmup ano); souběžné CSV se přepisuje;
+  tarball není v repu, `sha256sums=('SKIP')`, `license=custom`.
 - **Další krok:** žádný; fáze 4 uzavřená. Nová práce začne novou větví.
 - **Fáze 1–3 hotové** a mergnuté do `main`; detaily v `docs/historie.md`.
