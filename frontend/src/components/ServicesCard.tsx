@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import type { ServiceInfo } from "../types/snapshot";
 
 // Prazdny seznam neni "vsechno je dole", ale "nic se nesleduje": kdyz uzivatel
@@ -39,4 +40,4 @@ export const ServicesCard = memo(function ServicesCard({
       </div>
     </div>
   );
-});
+}, deepEqual);

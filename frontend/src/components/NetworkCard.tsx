@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { fmt } from "../lib/format";
 import type { NetInfo } from "../types/snapshot";
 
@@ -22,4 +23,4 @@ export const NetworkCard = memo(function NetworkCard({ net }: { net: NetInfo }) 
       </div>
     </div>
   );
-});
+}, deepEqual);

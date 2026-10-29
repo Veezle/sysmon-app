@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import type { LoadAvg } from "../types/snapshot";
 import { Bar } from "./Bar";
 import { Cores } from "./Cores";
@@ -38,4 +39,4 @@ export const CpuCard = memo(function CpuCard({
       <Cores values={cores} />
     </div>
   );
-});
+}, deepEqual);

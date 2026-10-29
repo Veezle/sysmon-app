@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import type { BatteryInfo, BatterySample } from "../types/snapshot";
 import { Bar } from "./Bar";
 import { BatteryChart } from "./BatteryChart";
@@ -51,4 +52,4 @@ export const BatteryCard = memo(function BatteryCard({
       </div>
     </div>
   );
-});
+}, deepEqual);

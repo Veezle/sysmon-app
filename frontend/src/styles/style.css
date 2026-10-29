@@ -66,6 +66,10 @@ body {
   background: var(--surface);
   box-shadow: var(--shadow-card);
   border-radius: var(--radius);
+  /* Vlastni vrstva kompozitoru: pri scrollu se karta jen preklada a stin se
+     neprekresluje na hlavnim vlakne. Bez toho se kazdy tik (nebo scroll)
+     dotkne celych stinu. */
+  will-change: transform;
 }
 .brand { min-width: 0; }
 .eyebrow {
@@ -148,6 +152,9 @@ h1 {
   position: relative;
   overflow: hidden;
   transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  /* Stejne jako .topbar: vlastni vrstva, aby scroll + tik prekreslil jen
+     tuto kartu, ne celeho grid. */
+  will-change: transform;
   --accent-card: var(--accent);
 }
 .card:hover {

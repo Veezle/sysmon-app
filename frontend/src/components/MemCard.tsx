@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { fmt } from "../lib/format";
 import type { MemInfo, SwapInfo } from "../types/snapshot";
 import { Bar } from "./Bar";
@@ -30,4 +31,4 @@ export const MemCard = memo(function MemCard({ mem, swap }: MemCardProps) {
       </div>
     </div>
   );
-});
+}, deepEqual);

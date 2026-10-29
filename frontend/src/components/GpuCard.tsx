@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import type { GpuInfo } from "../types/snapshot";
 import { Bar } from "./Bar";
 
@@ -37,4 +38,4 @@ export const GpuCard = memo(function GpuCard({ gpu }: { gpu: GpuInfo }) {
       </div>
     </div>
   );
-});
+}, deepEqual);

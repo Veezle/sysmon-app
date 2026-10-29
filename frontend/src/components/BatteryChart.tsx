@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef } from "react";
+import { deepEqual } from "../lib/equal";
 import type { BatterySample } from "../types/snapshot";
 
 // Kresleni je imperativni schvalne: pri 1,5s tiku by graf z React elementu
@@ -19,7 +20,7 @@ export const BatteryChart = memo(function BatteryChart({
     drawBatteryChart(canvas, history, chartKey);
   }, [history]);
   return <canvas className="battery-chart" id="battery-chart" ref={ref} />;
-});
+}, deepEqual);
 
 // Port `drawBatteryChart` z `../sysmon/static/app.js` vcetne `devicePixelRatio`.
 // Barvy jsou napevno (zadny `getComputedStyle`) - stejne jako dnes.

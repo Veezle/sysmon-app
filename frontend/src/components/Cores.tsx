@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { coreColor } from "../lib/format";
 
 // Jadra musi mit stabilni key (index), aby React menil jen text a vysku
@@ -17,4 +18,4 @@ export const Cores = memo(function Cores({ values }: { values: number[] }) {
       ))}
     </div>
   );
-});
+}, deepEqual);

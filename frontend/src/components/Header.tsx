@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { describeError, formatUptime } from "../lib/format";
 
 interface HeaderProps {
@@ -40,4 +41,4 @@ export const Header = memo(function Header({
       </div>
     </header>
   );
-});
+}, deepEqual);

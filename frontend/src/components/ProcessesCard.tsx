@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { coreColor, fmt } from "../lib/format";
 import type { ProcessInfo } from "../types/snapshot";
 
@@ -42,4 +43,4 @@ export const ProcessesCard = memo(function ProcessesCard({
       </div>
     </div>
   );
-});
+}, deepEqual);

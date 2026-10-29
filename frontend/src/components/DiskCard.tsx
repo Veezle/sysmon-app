@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { fmt } from "../lib/format";
 import type { DiskInfo } from "../types/snapshot";
 import { Bar } from "./Bar";
@@ -50,4 +51,4 @@ export const DiskCard = memo(function DiskCard({ disk, nvmeTemp }: DiskCardProps
       </div>
     </div>
   );
-});
+}, deepEqual);

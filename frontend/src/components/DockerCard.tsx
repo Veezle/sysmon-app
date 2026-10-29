@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { deepEqual } from "../lib/equal";
 import { formatPorts } from "../lib/format";
 import type { ContainerInfo, ContainersInfo } from "../types/snapshot";
 
@@ -99,4 +100,4 @@ export const DockerCard = memo(function DockerCard({
       </div>
     </div>
   );
-});
+}, deepEqual);
