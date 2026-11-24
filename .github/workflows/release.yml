@@ -144,9 +144,9 @@ jobs:
           cp "${deb_files[@]}" "${rpm_files[@]}" "${appimage_files[@]}" dist/
 
           SOURCE_ARCHIVE="sysmon-app-${APP_VERSION}.tar.gz"
-          git archive --format=tar.gz \
-            --prefix="sysmon-app-${APP_VERSION}/" \
-            -o "dist/$SOURCE_ARCHIVE" "$GITHUB_SHA"
+          git archive --format=tar \
+            --prefix="sysmon-app-${APP_VERSION}/" "$GITHUB_SHA" \
+            | gzip -9 > "dist/$SOURCE_ARCHIVE"
 
           SOURCE_SHA256="$(sha256sum "dist/$SOURCE_ARCHIVE" | cut -d ' ' -f 1)"
           sed "s/sha256sums=('SKIP')/sha256sums=('$SOURCE_SHA256')/" \
