@@ -1,0 +1,213 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Linux packages
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Tauri and packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libfuse2t64 \
+            libgtk-3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            rpm \
+            wget
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      - name: Check release version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_VERSION="$(python -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')"
+          CARGO_VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)"
+          ARCH_VERSION="$(sed -n 's/^pkgver=//p' packaging/arch/PKGBUILD | head -n 1)"
+
+          test -n "$APP_VERSION"
+          test "$APP_VERSION" = "$CARGO_VERSION"
+          test "$APP_VERSION" = "$ARCH_VERSION"
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG_VERSION" != "$APP_VERSION" ]]; then
+              echo "Tag $GITHUB_REF_NAME does not match application version $APP_VERSION." >&2
+              exit 1
+            fi
+          fi
+
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "Release version: $APP_VERSION"
+
+      - name: Install Python test dependency
+        run: python -m pip install --disable-pip-version-check psutil
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Check frontend types
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run Python tests
+        run: python -m unittest discover -s tests -t .
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build bundled daemon
+        run: packaging/build-daemon.sh
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Debian, RPM, and AppImage packages
+        run: cargo tauri build --bundles deb,rpm,appimage
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          deb_files=(src-tauri/target/release/bundle/deb/*.deb)
+          rpm_files=(src-tauri/target/release/bundle/rpm/*.rpm)
+          appimage_files=(src-tauri/target/release/bundle/appimage/*.AppImage)
+
+          if (( ${#deb_files[@]} == 0 )); then
+            echo "No Debian package was generated." >&2
+            exit 1
+          fi
+          if (( ${#rpm_files[@]} == 0 )); then
+            echo "No RPM package was generated." >&2
+            exit 1
+          fi
+          if (( ${#appimage_files[@]} == 0 )); then
+            echo "No AppImage was generated." >&2
+            exit 1
+          fi
+
+          cp "${deb_files[@]}" "${rpm_files[@]}" "${appimage_files[@]}" dist/
+
+          SOURCE_ARCHIVE="sysmon-app-${APP_VERSION}.tar.gz"
+          git archive --format=tar \
+            --prefix="sysmon-app-${APP_VERSION}/" "$GITHUB_SHA" \
+            | gzip -9 > "dist/$SOURCE_ARCHIVE"
+
+          SOURCE_SHA256="$(sha256sum "dist/$SOURCE_ARCHIVE" | cut -d ' ' -f 1)"
+          sed "s/sha256sums=('SKIP')/sha256sums=('$SOURCE_SHA256')/" \
+            packaging/arch/PKGBUILD > dist/PKGBUILD
+
+          if grep -q "sha256sums=('SKIP')" dist/PKGBUILD; then
+            echo "Could not insert the source archive checksum into PKGBUILD." >&2
+            exit 1
+          fi
+
+          (
+            cd dist
+            sha256sum *.deb *.rpm *.AppImage PKGBUILD "$SOURCE_ARCHIVE" > SHA256SUMS
+          )
+
+          echo "Release files:"
+          ls -lh dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysmon-app-${{ github.ref_name }}-linux
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sysmon-app-${{ github.ref_name }}-linux
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Sysmon App ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Linux downloads
+
+            - **Debian / Ubuntu:** install the `.deb` package with `sudo apt install ./<package>.deb`.
+            - **Fedora:** install the `.rpm` package with `sudo dnf install ./<package>.rpm`.
+            - **AppImage:** run `chmod +x <package>.AppImage`, then start the file.
+            - **Arch Linux:** download `PKGBUILD` and `sysmon-app-<version>.tar.gz` into the same directory, then run `makepkg -si`.
+
+            Verify downloaded files with `sha256sum -c SHA256SUMS`.
+
+            The release packages are built on Ubuntu 24.04. The daemon is built separately in Debian 13.
+          files: dist/*
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
