@@ -10,8 +10,16 @@ Download a package from [GitHub Releases](https://github.com/Veezle/sysmon-app/r
 |---|---|
 | Debian / Ubuntu | `sudo apt install ./sysmon-app_*.deb` |
 | Fedora | `sudo dnf install ./sysmon-app-*.rpm` |
-| Arch Linux | Build with `packaging/arch/PKGBUILD` |
-| AppImage | Run after setting the executable bit |
+| Arch Linux | Download `PKGBUILD` and the matching source archive, then run `makepkg -si` |
+| AppImage | Make the file executable and run it |
+
+## Supported build targets
+
+Release packages are built on Ubuntu 24.04. The bundled daemon is built separately in a Debian 13 container.
+
+The Debian, RPM, and AppImage binaries require glibc 2.39 or newer. The Debian and RPM packages use system WebKitGTK and GTK libraries. The AppImage bundles its other application libraries.
+
+Debian 12 and older are not supported by the current packages.
 
 ## Runtime dependencies
 
@@ -40,14 +48,6 @@ On Fedora:
 ```bash
 sudo dnf install webkit2gtk4.1 libayatana-appindicator-gtk3
 ```
-
-## Compatibility
-
-The daemon is bundled with the application. A system-wide Python installation and `psutil` are not required for packaged builds.
-
-The Debian and RPM binaries require glibc 2.39 or newer. The AppImage is built on Arch Linux and requires glibc 2.44 or newer.
-
-Debian 12 and older are not supported by the current packages.
 
 ## Build from source
 
@@ -94,12 +94,33 @@ The build requires network access for npm, Cargo, and PyInstaller dependencies.
 
 ## Arch Linux package
 
-Build the source archive and install the package:
+Download `PKGBUILD` and the matching `sysmon-app-<version>.tar.gz` asset from the same GitHub Release. Put both files in one directory and run:
 
 ```bash
-git archive --prefix=sysmon-app-0.1.0/ \
-    -o packaging/arch/sysmon-app-0.1.0.tar.gz HEAD
-
-cd packaging/arch
 makepkg -si
 ```
+
+The release workflow includes the SHA-256 checksum of the source archive in the downloaded PKGBUILD.
+
+## Create a release
+
+The GitHub Actions workflow builds packages when a version tag is pushed.
+
+Before a release, keep these version fields in sync:
+
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+- `packaging/arch/PKGBUILD`
+
+For example, after setting all three versions to `0.1.0`:
+
+```bash
+git switch main
+git pull --ff-only
+git tag -a v0.1.0 -m "Sysmon App v0.1.0"
+git push origin v0.1.0
+```
+
+The tag starts the build and creates the GitHub Release after all build steps pass.
+
+You can also run the workflow manually from the Actions tab. A manual run builds the packages and uploads them as a workflow artifact. It does not publish a release.
