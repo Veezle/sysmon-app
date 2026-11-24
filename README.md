@@ -97,7 +97,7 @@ Configuration file:
 Example:
 
 ```toml
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 8430
 ignored_ports = [53, 631]
 
