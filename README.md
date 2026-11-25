@@ -4,6 +4,10 @@ A lightweight Linux system monitor with a React dashboard, a native desktop wind
 
 Sysmon App collects system metrics in one background daemon and displays the same live dashboard in a browser or a Tauri desktop window.
 
+## Screenshot
+
+![Sysmon App dashboard](docs/images/sysmon-dashboard.webp)
+
 ## Features
 
 - CPU, memory, swap, disk and network usage
