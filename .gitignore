@@ -4,7 +4,10 @@ node_modules/
 sysmon_app/web/
 src-tauri/target/
 src-tauri/gen/
-STOP
+
+# Local AI assistant settings
+.claude/
+CLAUDE.md
 packaging/.venv/
 packaging/build/
 packaging/daemon/*

@@ -97,7 +97,7 @@ Configuration file:
 Example:
 
 ```toml
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 8430
 ignored_ports = [53, 631]
 
@@ -106,9 +106,9 @@ ignored_ports = [53, 631]
 3306 = "MySQL"
 ```
 
-Use `host = "127.0.0.1"` to allow access only from the local machine.
+The default host is `127.0.0.1`. The dashboard is available only on the local machine.
 
-Use `host = "0.0.0.0"` to allow access from other devices on the network. **There is no authentication.** Anyone who can reach the dashboard can see system metrics, running processes, and listening ports.
+To access the dashboard from another device on a trusted local network, set `host = "0.0.0.0"`. **The API has no authentication.** Any device that can reach the port can see system metrics, running processes, and listening ports. Do not expose the dashboard to the public Internet.
 
 ## Development
 
@@ -153,8 +153,6 @@ npm run typecheck
 - [Installation and packaging](docs/installation.md)
 - [Architecture and API](docs/architecture.md)
 - [Development and testing](docs/development.md)
-- [Project status](docs/STATE.md)
-- [Development history](docs/historie.md)
 
 ## Related project
 

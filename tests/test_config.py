@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from sysmon_app.config import (
-    DEFAULT_PORT, DEFAULT_WATCH_PORTS, config_path, load_settings,
+    DEFAULT_HOST, DEFAULT_PORT, DEFAULT_WATCH_PORTS, config_path, load_settings,
 )
 
 
@@ -40,6 +40,8 @@ class ConfigPathTest(unittest.TestCase):
 class LoadSettingsTest(TempConfigTest):
     def test_missing_file_gives_defaults(self):
         s = load_settings("/tmp/sysmon-app-neexistuje.toml")
+        self.assertEqual(s.host, "127.0.0.1")
+        self.assertEqual(s.host, DEFAULT_HOST)
         self.assertEqual(s.port, DEFAULT_PORT)
         self.assertEqual(s.watch_ports, DEFAULT_WATCH_PORTS)
 
