@@ -106,19 +106,27 @@ The release workflow includes the SHA-256 checksum of the source archive in the 
 
 The GitHub Actions workflow builds packages when a version tag is pushed.
 
-Before a release, keep these version fields in sync:
+Before a release, keep these version entries in sync:
 
-- `src-tauri/tauri.conf.json`
-- `src-tauri/Cargo.toml`
-- `packaging/arch/PKGBUILD`
+- `src-tauri/tauri.conf.json` (`version`)
+- `src-tauri/Cargo.toml` (`package.version`)
+- `src-tauri/Cargo.lock` (the local `sysmon-app` package entry)
+- `packaging/arch/PKGBUILD` (`pkgver`)
 
-For example, after setting all three versions to `0.1.0`:
+After changing `Cargo.toml`, refresh the lockfile:
+
+```bash
+cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+After the version bump has been merged into `main`, create and push an annotated tag. For the `0.1.1` release:
 
 ```bash
 git switch main
 git pull --ff-only
-git tag -a v0.1.0 -m "Sysmon App v0.1.0"
-git push origin v0.1.0
+VERSION="0.1.1"
+git tag -a "v${VERSION}" -m "Sysmon App v${VERSION}"
+git push origin "v${VERSION}"
 ```
 
 The tag starts the build and creates the GitHub Release after all build steps pass.
