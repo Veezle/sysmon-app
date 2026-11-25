@@ -168,7 +168,8 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: sysmon-app-${{ github.ref_name }}-linux
+          # Keep artifact names valid for all Git ref names (branch names can contain '/').
+          name: sysmon-app-linux-build-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist/*
           if-no-files-found: error
           retention-days: 14
@@ -185,7 +186,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: sysmon-app-${{ github.ref_name }}-linux
+          name: sysmon-app-linux-build-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist
 
       - name: Create GitHub Release
