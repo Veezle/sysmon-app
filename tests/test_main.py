@@ -214,11 +214,10 @@ class StartTest(MainTestCase):
         code, out, err = self.run_main([])
 
         self.assertEqual(code, 0)
-        # Hodnota je tu dvakrat: jednou jako literál (to je to, co kritérium
-        # pojmenovava) a jednou pres konstanty (aby bylo videt, odkud je).
-        self.assertEqual(self.serve_calls, [("0.0.0.0", 8430)])
+        # Vychozi adresa nesmi vystavit dashboard do site bez vedome volby.
+        self.assertEqual(DEFAULT_HOST, "127.0.0.1")
         self.assertEqual(self.serve_calls, [(DEFAULT_HOST, DEFAULT_PORT)])
-        self.assertIn("http://0.0.0.0:8430", out)
+        self.assertIn(f"http://{DEFAULT_HOST}:{DEFAULT_PORT}", out)
         self.assertIn("http://localhost:8430", out)
         self.assertEqual(err, "")
         # A hlavne: server opravdu obsluhuje. Bez `serve_forever()` by se

@@ -9,7 +9,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_HOST = "0.0.0.0"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8430          # sysmon ma 8420; oba produkty zijou vedle sebe
 
 TICK_SEC = 1.5               # perioda sberneho cyklu = perioda SSE

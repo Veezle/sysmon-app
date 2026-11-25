@@ -67,6 +67,8 @@ Both `/stats` and `/events` expose the same snapshot data.
 
 ## Network and privacy
 
-The default host is `0.0.0.0` to support access from other devices on the local network.
+The default host is `127.0.0.1`. The dashboard accepts connections from the local machine only.
 
-The API has no authentication. Use `127.0.0.1` when network access is not required.
+To access it from another device on a trusted local network, set `host = "0.0.0.0"` in `~/.config/sysmon-app/config.toml`.
+
+The API has no authentication. Any device that can reach the port can read system metrics, running processes, and listening ports. Do not expose it to the public Internet.
